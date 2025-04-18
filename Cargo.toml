@@ -1,0 +1,22 @@
+# using toml instead of a makefile (rust standard)
+
+[package]
+name = "c4"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+
+
+[[bin]]
+name = "c4_rust_Al_Jazirah_Al_Hamra"
+path = "src/c4.rs"
+
+[package.metadata.cargo-make]
+tasks = [
+    { name = "build", command = "cargo", args = ["build"] },    # similar to "make all" in makefiles
+    { name = "test", command = "cargo", args = ["test"] },      # runs the unit tests in the tests folder
+    { name = "doc", command = "cargo", args = ["doc"] },        # generates documentation from our code
+    { name = "run", command = "cargo", args = ["run"] },        # Builds THEN runs the project (but does not rebuilt if a build already exists)
+    { name = "clean", command = "cargo", args = ["clean"] }     # similar to "make clean", cleans existing builds
+]
