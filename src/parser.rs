@@ -22,20 +22,22 @@ Conditional parsing - Ternary conditional "? : "
 */
 
 /* TEMPORARY LEXER OUTPUT*/
-#[derive(Debug, Clone, PartialEq)]
-pub enum Token {
-	Num(i64),
-	Id(String),
-	Str(String),
+use crate::lexer::Token;
 
-	Assign, Cond, Lor, Lan, Or, Xor, And, Eq, Ne,
-	Lt, Gt, Le, Ge, Shl, Shr, Add, Sub, Mul, Div, Mod,
-	Inc, Dec, Brak, Not,
+// #[derive(Debug, Clone, PartialEq)]
+// pub enum Token {
+// 	Num(i64),
+// 	Id(String),
+// 	Str(String),
 
-	Semicolon, Colon, Comma,
-	LParen, RParen, LBrace, RBrace,
-	LBracket, RBracket,
-}
+// 	Assign, Cond, Lor, Lan, Or, Xor, And, Eq, Ne,
+// 	Lt, Gt, Le, Ge, Shl, Shr, Add, Sub, Mul, Div, Mod,
+// 	Inc, Dec, Brak, Not,
+
+// 	Semicolon, Colon, Comma,
+// 	LParen, RParen, LBrace, RBrace,
+// 	LBracket, RBracket,
+// }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ASTNode {
@@ -238,5 +240,22 @@ impl<'a> Parser<> {
     	    });
     	}
 		Some(node)
+	}
+
+	pub fn parse_program(&mut self) -> Vec<ASTNode> { // main parsing handler
+		let mut nodes = Vec::new();
+	
+		while self.current() != Some(&Token::EOF) {
+			if let Some(stmt) = self.parse_expr() {
+				nodes.push(stmt);
+	
+				if self.current() == Some(&Token::Semicolon) {
+					self.advance();
+				}
+			} else {
+				break;
+			}
+		}
+		nodes
 	}
 }

@@ -19,4 +19,6 @@ tasks = [
     { name = "doc", command = "cargo", args = ["doc"] },        # generates documentation from our code
     { name = "run", command = "cargo", args = ["run"] },        # Builds THEN runs the project (but does not rebuilt if a build already exists)
     { name = "clean", command = "cargo", args = ["clean"] }     # similar to "make clean", cleans existing builds
+    #{ name = "fmt", command = "cargo", args = ["fmt"] }         # for rust formatting
+    #{ name = "clippy", command = "cargo", args = ["clippy"] }   # for catching issues
 ]

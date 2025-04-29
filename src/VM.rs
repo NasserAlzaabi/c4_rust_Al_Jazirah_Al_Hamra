@@ -1,4 +1,6 @@
 // Virtual Machine file
+use crate::parser::ASTNode; // used to convert ast to instructions
+use crate::lexer::Token;    // our token enum
 
 #[derive(Debug, Clone, Copy)]
 pub enum Instruction { // instruction types
@@ -47,7 +49,7 @@ impl VM {
                 Instruction::DIV => self.exec_div(),
                 Instruction::MOD => self.exec_mod(),
                 Instruction::EXIT => return self.ax,
-                _ => panic!("Unimplemented instruction: {:?}", self.text[self.pc - 1]),
+                _ => panic!("Unsupported instruction: {:?}", self.text[self.pc - 1]),
             }
         }
     }
@@ -90,5 +92,40 @@ impl VM {
     fn exec_mod(&mut self) {
         self.sp -= 1;
         self.ax = self.stack[self.sp] % self.ax;
+    }
+}
+
+pub fn generate(program: Vec<ASTNode>) -> Vec<Instruction> {
+    let mut instructions = Vec::new();
+
+    for node in program {
+        generate_node(&node, &mut instructions);
+    }
+
+    instructions
+}
+
+fn generate_node(node: &ASTNode, instructions: &mut Vec<Instruction>) {
+    match node {
+        ASTNode::Num(value) => {
+            instructions.push(Instruction::IMM(*value as i32)); // Load into ax
+            instructions.push(Instruction::PUSH);               // Push onto stack
+        }
+        ASTNode::BinaryOp { op, left, right } => {
+            generate_node(left, instructions);
+            generate_node(right, instructions);
+
+            match op {
+                Token::Add => instructions.push(Instruction::ADD),
+                Token::Sub => instructions.push(Instruction::SUB),
+                Token::Mul => instructions.push(Instruction::MUL),
+                Token::Div => instructions.push(Instruction::DIV),
+                Token::Mod => instructions.push(Instruction::MOD),
+                _ => panic!("Unsupported binary operator {:?}", op),
+            }
+        }
+        _ => {
+            panic!("Unsupported AST node {:?}", node);
+        }
     }
 }
