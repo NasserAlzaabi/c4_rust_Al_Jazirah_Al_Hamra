@@ -395,6 +395,20 @@ impl<'a> Lexer<'a> {
             }
         }
     }
+	
+	pub fn tokenize(&mut self) -> Vec<Token> {
+		let mut tokens = Vec::new();
+
+		loop {
+			let token = self.next_token();
+			if token == Token::EOF {
+				break;
+			}
+			tokens.push(token);
+		}
+
+		tokens
+	}
 }
 
 
