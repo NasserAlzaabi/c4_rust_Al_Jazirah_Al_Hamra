@@ -22,6 +22,7 @@ pub enum Token {
 
 	//Keywords
 	Char, Else, Enum, If, Int, Return, Sizeof, While,
+	Void, Float, Double, Short, Long,
 
 	//Operators
 	Assign,  // =
@@ -162,6 +163,11 @@ impl<'a> Lexer<'a> {
 			"return"  => Token::Return,
 			"sizeof"  => Token::Sizeof,
 			"while"   => Token::While,
+			"void"    => Token::Void,
+			"float"   => Token::Float,
+			"double"  => Token::Double,
+			"short"   => Token::Short,
+			"long"    => Token::Long,
 			_ => Token::Id(ident.to_string()),
 		}
 	}
@@ -386,13 +392,7 @@ impl<'a> Lexer<'a> {
 						Token::Unknown(c)
 					}
 				}
-			}			
-
-			//catch all fail safe
-            Some(c) => {
-                self.advance();
-                Token::Unknown(c)
-            }
+			}
         }
     }
 	
@@ -402,6 +402,7 @@ impl<'a> Lexer<'a> {
 		loop {
 			let token = self.next_token();
 			if token == Token::EOF {
+				tokens.push(Token::EOF);
 				break;
 			}
 			tokens.push(token);

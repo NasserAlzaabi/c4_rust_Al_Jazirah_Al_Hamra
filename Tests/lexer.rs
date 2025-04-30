@@ -11,6 +11,60 @@ mod tests {
         assert_eq!(token, Token::EOF);
         assert_eq!(lexer.line, 3); // 2 newline advances
     }
+	
+	#[test]
+	fn test_numeric_literals() {
+		let mut lexer = Lexer::new("42 0x10 0755 0");
+		let tokens = lexer.tokenize();
+		assert_eq!(
+			tokens,
+			vec![
+				Token::Num(42),
+				Token::Num(16),
+				Token::Num(493),
+				Token::Num(0),
+				Token::EOF,
+			]
+		);
+	}
+
+    #[test]
+    fn test_data_type_keywords() {
+        let input = "int char void float double short long";
+        let mut lexer = Lexer::new(input);
+        let tokens = lexer.tokenize();
+
+        let expected = vec![
+            Token::Int,
+            Token::Char,
+            Token::Void,
+            Token::Float,
+            Token::Double,
+            Token::Short,
+            Token::Long,
+            Token::EOF,
+        ];
+
+        assert_eq!(tokens, expected);
+    }
+
+	#[test]
+	fn test_lexer_function_declaration() {
+		let mut lexer = Lexer::new("int main() {}");
+		let tokens = lexer.tokenize();
+	
+		let expected = vec![
+			Token::Int,
+			Token::Id("main".to_string()),
+			Token::LParen,
+			Token::RParen,
+			Token::LBrace,
+			Token::RBrace,
+			Token::EOF,
+		];
+	
+		assert_eq!(tokens, expected);
+	}
 
     #[test]
     fn test_skip_hash_comment() {

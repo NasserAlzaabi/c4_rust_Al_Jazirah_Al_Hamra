@@ -57,6 +57,12 @@ pub enum ASTNode {
 		name: String,
 		args: Vec<ASTNode>,
 	},
+	FuncDef {
+		return_type: Token,
+		name: String,
+		params: Vec<(Token, String)>, // e.g., int x, float y
+		body: Vec<ASTNode>,
+	},
 	Sizeof {                 //sizeof(int) or sizeof(x)
 		expr: Box<ASTNode>,
 	},
@@ -69,6 +75,20 @@ pub enum ASTNode {
 		then_branch: Box<ASTNode>,
 		else_branch: Box<ASTNode>,
 	},
+	If {
+		cond: Box<ASTNode>,
+		then_branch: Box<ASTNode>,
+		else_branch: Option<Box<ASTNode>>,
+	},
+	Decl {
+		typename: Token,
+		name: String,
+	},
+	DeclAssign {
+		typename: Token,
+		name: String,
+		value: Box<ASTNode>,
+	},
 }
 
 pub struct Parser {
@@ -76,7 +96,7 @@ pub struct Parser {
 	pos: usize,             //Current token position
 }
 
-impl<'a> Parser<> {
+impl Parser {
 	pub fn new(tokens: Vec<Token>) -> Self {
 		Parser { tokens, pos: 0 }
 	}
@@ -206,6 +226,221 @@ impl<'a> Parser<> {
 		Some(left)
 	}
 
+	pub fn parse_stmt(&mut self) -> Option<ASTNode> {
+		if self.current() == Some(&Token::LBrace) {
+			self.advance(); // consume '{'
+			let mut body = Vec::new();
+	
+			while self.current() != Some(&Token::RBrace) && self.current() != Some(&Token::EOF) {
+				if self.current() == Some(&Token::Semicolon) {
+					self.advance();
+					continue;
+				}
+	
+				if let Some(stmt) = self.parse_if()
+				.or_else(|| self.parse_decl())
+				.or_else(|| self.parse_expr())
+				{
+					body.push(stmt);
+					if self.current() == Some(&Token::Semicolon) {
+						self.advance();
+					}
+				} else {
+					break;
+				}
+			}
+	
+			if self.current() == Some(&Token::RBrace) {
+				self.advance(); // consume '}'
+			}
+	
+			// Wrap body in a block node (optional)
+			Some(ASTNode::FuncCall {
+				name: "__block".into(),
+				args: body, // crude way to group — you can define a Block(Vec<ASTNode>) if preferred
+			})
+		} else {
+			self.parse_func_def()
+				.or_else(|| self.parse_if())
+				.or_else(|| self.parse_decl())
+				.or_else(|| self.parse_expr())
+		}
+	}
+	
+
+	pub fn parse_if(&mut self) -> Option<ASTNode> {
+		if self.current() != Some(&Token::If) {
+			return None;
+		}
+		self.advance(); // consume 'if'
+	
+		if self.current() != Some(&Token::LParen) {
+			return None;
+		}
+		self.advance(); // consume '('
+	
+		let cond = self.parse_expr()?; // parse condition
+	
+		if self.current() != Some(&Token::RParen) {
+			return None;
+		}
+		self.advance(); // consume ')'
+	
+		let then_branch = self.parse_stmt()?; // parse then statement
+	
+		let else_branch = if self.current() == Some(&Token::Else) {
+			self.advance(); // consume 'else'
+			Some(Box::new(self.parse_stmt()?))
+		} else {
+			None
+		};
+	
+		Some(ASTNode::If {
+			cond: Box::new(cond),
+			then_branch: Box::new(then_branch),
+			else_branch,
+		})
+	}
+	
+
+	pub fn parse_decl(&mut self) -> Option<ASTNode> {
+		let typename = match self.current()? {
+			Token::Int | Token::Char | Token::Float | Token::Double |
+			Token::Void | Token::Short | Token::Long => self.current()?.clone(),
+			_ => return None,
+		};
+	
+		// Only skip function definitions at the very beginning of the program (global scope)
+		// This avoids misparsing int main(...) as a declaration instead of a function
+		if self.pos == 0 {
+			if let Some(Token::Id(_)) = self.tokens.get(self.pos + 1) {
+				if self.tokens.get(self.pos + 2) == Some(&Token::LParen) {
+					return None;
+				}
+			}
+		}
+	
+		self.advance(); // move past typename
+		let name = match self.current()? {
+			Token::Id(n) => n.clone(),
+			_ => return None,
+		};
+		self.advance();
+	
+		if self.current() == Some(&Token::Assign) {
+			self.advance();
+			let value = self.parse_expr()?;
+			return Some(ASTNode::DeclAssign {
+				typename,
+				name,
+				value: Box::new(value),
+			});
+		}
+	
+		Some(ASTNode::Decl { typename, name })
+	}
+	
+	
+	
+	
+	
+	
+	pub fn parse_func_def(&mut self) -> Option<ASTNode> {	
+		let return_type = match self.current()? {
+			Token::Int | Token::Char | Token::Float | Token::Double |
+			Token::Void | Token::Short | Token::Long => self.current()?.clone(),
+			_ => return None,
+		};
+		self.advance();
+	
+		let name = match self.current()? {
+			Token::Id(name) => name.clone(),
+			_ => return None,
+		};
+		self.advance();
+	
+		if self.current() != Some(&Token::LParen) {
+			return None;
+		}
+		self.advance();
+	
+		let mut params = Vec::new();
+	
+		while self.current() != Some(&Token::RParen) {
+	
+			let param_type = match self.current()? {
+				Token::Int | Token::Char | Token::Float | Token::Double |
+				Token::Void | Token::Short | Token::Long => self.current()?.clone(),
+				_ => {
+					return None;
+				}
+			};
+			self.advance();
+	
+			let param_name = match self.current()? {
+				Token::Id(name) => name.clone(),
+				_ => {
+					return None;
+				}
+			};
+			self.advance();
+	
+			params.push((param_type, param_name));
+	
+			if self.current() == Some(&Token::Comma) {
+				self.advance();
+			} else {
+				break;
+			}
+		}
+	
+		if self.current() != Some(&Token::RParen) {
+			return None;
+		}
+		self.advance();
+	
+		if self.current() != Some(&Token::LBrace) {
+			return None;
+		}
+		self.advance();
+	
+		let mut body = Vec::new();
+		while self.current() != Some(&Token::RBrace) && self.current() != Some(&Token::EOF) {
+			if self.current() == Some(&Token::Semicolon) {
+				self.advance();
+				continue;
+			}
+	
+			let snapshot = self.pos;
+			if let Some(stmt) = self.parse_if()
+			.or_else(|| self.parse_decl())
+			.or_else(|| self.parse_expr())
+			{		
+				body.push(stmt);
+				if self.current() == Some(&Token::Semicolon) {
+					self.advance();
+				}
+			} else {
+				self.pos = snapshot;
+				break;
+			}
+		}
+	
+		if self.current() != Some(&Token::RBrace) {
+			return None;
+		}
+		self.advance();
+	
+		Some(ASTNode::FuncDef {
+			return_type,
+			name,
+			params,
+			body,
+		})
+	}
+	
+	
+
 	pub fn parse_expr(&mut self) -> Option<ASTNode> {
 		let node = self.parse_binary(0)?;
 	
@@ -242,19 +477,50 @@ impl<'a> Parser<> {
 		Some(node)
 	}
 
-	pub fn parse_program(&mut self) -> Vec<ASTNode> { // main parsing handler
+	pub fn parse_program(&mut self) -> Vec<ASTNode> {
 		let mut nodes = Vec::new();
 	
 		while self.current() != Some(&Token::EOF) {
-			if let Some(stmt) = self.parse_expr() {
-				nodes.push(stmt);
 	
+			if self.current() == Some(&Token::Semicolon) {
+				self.advance();
+				continue;
+			}
+	
+			let snapshot = self.pos;
+	
+			if let Some(stmt) = self.parse_func_def() {
+				nodes.push(stmt);
+				continue;
+			}
+	
+			self.pos = snapshot;
+			if let Some(stmt) = self.parse_if() {
+				nodes.push(stmt);
 				if self.current() == Some(&Token::Semicolon) {
 					self.advance();
 				}
-			} else {
-				break;
+				continue;
 			}
+	
+			self.pos = snapshot;
+			if let Some(stmt) = self.parse_decl() {
+				nodes.push(stmt);
+				if self.current() == Some(&Token::Semicolon) {
+					self.advance();
+				}
+				continue;
+			}
+	
+			self.pos = snapshot;
+			if let Some(stmt) = self.parse_expr() {
+				nodes.push(stmt);
+				if self.current() == Some(&Token::Semicolon) {
+					self.advance();
+				}
+				continue;
+			}
+			break;
 		}
 		nodes
 	}
