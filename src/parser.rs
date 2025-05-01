@@ -44,16 +44,16 @@ pub enum ASTNode {
 	Num(i64),                //Number
 	Id(String),              //Identifier
 	Str(String),
-	UnaryOp {                //Unary Operator like '-', '*', '&', '!'
+	UnaryOp {
 		op: Token,
 		expr: Box<ASTNode>,
 	},
-	BinaryOp {               //Binary Operator like '+', '==', '*'
+	BinaryOp {
 		op: Token,
 		left: Box<ASTNode>,
 		right: Box<ASTNode>,
 	},
-	FuncCall {               //Function call like f(x, y)
+	FuncCall {
 		name: String,
 		args: Vec<ASTNode>,
 	},
@@ -63,7 +63,7 @@ pub enum ASTNode {
 		params: Vec<(Token, String)>, // e.g., int x, float y
 		body: Vec<ASTNode>,
 	},
-	Sizeof {                 //sizeof(int) or sizeof(x)
+	Sizeof {
 		expr: Box<ASTNode>,
 	},
 	Assign {
@@ -92,8 +92,8 @@ pub enum ASTNode {
 }
 
 pub struct Parser {
-	tokens: Vec<Token>,     //list of tokens (Temp before git merge with lexer) 
-	pos: usize,             //Current token position
+	tokens: Vec<Token>,
+	pos: usize,
 }
 
 impl Parser {
@@ -122,10 +122,10 @@ impl Parser {
 				let name = name.clone();
 				self.advance();
 				if self.current() == Some(&Token::LParen) {
-					self.advance(); //skip '('
+					self.advance();
 					let mut args = Vec::new();
 					while self.current() != Some(&Token::RParen) {
-						if let Some(arg) = self.parse_primary() {
+						if let Some(arg) = self.parse_expr() {
 							args.push(arg);
 						} else {
 							return None;
@@ -152,10 +152,10 @@ impl Parser {
 				Some(ASTNode::Str(s))
 			}
 			Some(Token::LParen) => {
-				self.advance(); //skip '('
-				let expr = self.parse_expr(); //Full expression inside ()
+				self.advance();
+				let expr = self.parse_expr();
 				if self.current() == Some(&Token::RParen) {
-					self.advance(); //skip ')'
+					self.advance();
 					expr
 				} else {
 					None

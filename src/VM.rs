@@ -14,7 +14,8 @@ pub enum Instruction { // instruction types
     ENT(usize),
     ADJ(usize),
     LEV, LEA(usize),
-    LOAD(String), STORE(String),
+    LOAD(String), STORE(String), 
+    PRINTF(String, Vec<String>),
     OR, XOR, AND, EQ, NE, LT, LE, GT, GE, SHL, SHR,
     ADD, SUB, MUL, DIV, MOD,
     EXIT,
@@ -53,8 +54,9 @@ impl VM {
                 Instruction::MUL => self.exec_mul(),
                 Instruction::DIV => self.exec_div(),
                 Instruction::MOD => self.exec_mod(),
-                Instruction::STORE(name) => self.exec_store(name),
+                Instruction::STORE(name) => self.exec_store(name.as_str()),
                 Instruction::LOAD(name) => self.exec_load(name),
+                Instruction::PRINTF(fmt, args) => self.exec_printf(&fmt, &args),
                 Instruction::EXIT => return self.ax,
                 _ => panic!("Unsupported instruction: {:?}", self.text[self.pc - 1]),
             }
@@ -101,12 +103,30 @@ impl VM {
         self.ax = self.stack[self.sp] % self.ax;
     }
 
-    fn exec_store(&mut self, name: String) {
-        self.variables.insert(name, self.ax);
+    fn exec_store(&mut self, name: &str) {
+        self.variables.insert(name.to_string(), self.ax);
     }
     
     fn exec_load(&mut self, name: String) {
         self.ax = *self.variables.get(&name).unwrap_or(&0);
+    }
+
+    pub fn exec_printf(&self, fmt: &String, args: &Vec<String>) {
+        let mut output = fmt.clone();
+
+        for var in args {
+            if let Some(val) = self.variables.get(var) {
+                output = output.replacen("%d", &val.to_string(), 1);
+            } else {
+                panic!("Undefined variable: {}", var);
+            }
+        }
+
+        if output.contains("%d") {
+            panic!("Mismatch between format string and arguments");
+        }
+
+        println!("{}", output);
     }
 }
 
@@ -118,7 +138,7 @@ pub fn generate(program: Vec<ASTNode>) -> Vec<Instruction> {
     instructions
 }
 
-fn generate_node(node: &ASTNode, instructions: &mut Vec<Instruction>) {
+pub fn generate_node(node: &ASTNode, instructions: &mut Vec<Instruction>) {
     match node {
         ASTNode::Num(value) => {
             instructions.push(Instruction::IMM(*value as i32));
@@ -142,6 +162,40 @@ fn generate_node(node: &ASTNode, instructions: &mut Vec<Instruction>) {
                 Token::Div => instructions.push(Instruction::DIV),
                 Token::Mod => instructions.push(Instruction::MOD),
                 _ => panic!("Unsupported binary operator {:?}", op),
+            }
+        }
+        ASTNode::FuncCall { name, args } => {
+            if name == "printf" {
+                if args.is_empty() {
+                    panic!("printf requires at least a format string");
+                }
+
+                match &args[0] {
+                    ASTNode::Str(message) => {
+                        let mut fmt_args = Vec::new();
+                        for arg in &args[1..] {
+                            if let ASTNode::Id(var_name) = arg {
+                                fmt_args.push(var_name.clone());
+                            } else {
+                                panic!("Only variable identifiers allowed as printf arguments");
+                            }
+                        }
+                        instructions.push(Instruction::PRINTF(message.clone(), fmt_args));
+                    }
+                    _ => panic!("printf must start with a string literal"),
+                }
+            } else {
+                panic!("Function call '{}' not supported yet", name);
+            }
+        }
+        ASTNode::FuncDef { name, body, .. } => {
+            if name == "main" {
+                for stmt in body {
+                    generate_node(stmt, instructions);
+                }
+                instructions.push(Instruction::EXIT);
+            } else {
+                panic!("Only 'main' function is supported for now.");
             }
         }
         _ => panic!("Unsupported AST node {:?}", node),
