@@ -1,4 +1,95 @@
 use c4::parser::*;
+use c4::lexer::Token;
+
+
+#[test]
+fn test_parse_empty_function() {
+    let tokens = vec![
+        Token::Int,
+        Token::Id("main".to_string()),
+        Token::LParen,
+        Token::RParen,
+        Token::LBrace,
+        Token::RBrace,
+        Token::EOF,
+    ];
+
+    let mut parser = Parser::new(tokens);
+    let ast = parser.parse_program();
+
+    let expected = vec![
+        ASTNode::FuncDef {
+            return_type: Token::Int,
+            name: "main".to_string(),
+            params: vec![],
+            body: vec![],
+        }
+    ];
+
+    assert_eq!(ast, expected);
+}
+
+#[test]
+fn test_parse_function_with_declaration() {
+    let tokens = vec![
+        Token::Int,
+        Token::Id("main".to_string()),
+        Token::LParen,
+        Token::RParen,
+        Token::LBrace,
+        Token::Int,
+        Token::Id("x".to_string()),
+        Token::Semicolon,
+        Token::RBrace,
+        Token::EOF,
+    ];
+
+    let mut parser = Parser::new(tokens);
+    let ast = parser.parse_program();
+
+    let expected = vec![
+        ASTNode::FuncDef {
+            return_type: Token::Int,
+            name: "main".to_string(),
+            params: vec![],
+            body: vec![
+                ASTNode::Decl {
+                    typename: Token::Int,
+                    name: "x".to_string(),
+                }
+            ],
+        }
+    ];
+
+    assert_eq!(ast, expected);
+}
+
+
+#[test]
+fn test_parse_simple_declaration_assignment() {
+    let tokens = vec![
+        Token::Int,
+        Token::Id("x".to_string()),
+        Token::Assign,
+        Token::Num(10),
+        Token::Semicolon,
+        Token::EOF,
+    ];
+
+    let mut parser = Parser::new(tokens);
+    let ast = parser.parse_program();
+
+    let expected = vec![
+        ASTNode::DeclAssign {
+            typename: Token::Int,
+            name: "x".to_string(),
+            value: Box::new(ASTNode::Num(10)),
+        }
+    ];
+
+    assert_eq!(ast, expected);
+}
+
 
 #[test]
 fn test_parse_number() {
