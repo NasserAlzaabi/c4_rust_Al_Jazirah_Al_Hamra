@@ -203,12 +203,16 @@ impl VM {
         );
     
         if let Some(return_addr) = self.call_stack.pop() {
-            if self.sp == 0 {
-                self.ax = 0; // Default return value
-            } else {
-                self.ax = self.stack[self.sp - 1]; // Pop return value into ax
-                self.sp -= 1; // Adjust stack pointer
-            }
+            // if self.sp == 0 {
+            //     self.ax = 0; // Default return value
+            // } else {
+            //     self.ax = self.stack[self.sp - 1]; // Pop return value into ax
+            //     self.sp -= 1; // Adjust stack pointer
+            // }
+            if self.sp > 0 {
+                self.sp -= 1;
+                self.ax = self.stack[self.sp];
+            }            
             self.pc = return_addr; // Restore the program counter
         } else {
             // Terminate if the call stack is empty (main is returning)
@@ -228,15 +232,23 @@ impl VM {
     
     pub fn exec_printf(&mut self, fmt: &String, args: &Vec<String>) {
         println!("Executing PRINTF: fmt = {:?}, args = {:?}", fmt, args);
-    
+        println!("VM variables: {:?}", self.variables);
         let mut output = fmt.clone();
     
-        for var in args {
-            if let Some(val) = self.variables.get(var) {
-                output = output.replacen("%d", &val.to_string(), 1);
-            } else {
-                panic!("Undefined variable: {}", var);
+        // for var in args {
+        //     if let Some(val) = self.variables.get(var) {
+        //         output = output.replacen("%d", &val.to_string(), 1);
+        //     } else {
+        //         panic!("Undefined variable: {}", var);
+        //     }
+        // }
+        for _ in args {
+            if self.sp == 0 {
+                panic!("Not enough values on the stack for printf");
             }
+            self.sp -= 1;
+            let val = self.stack[self.sp];
+            output = output.replacen("%d", &val.to_string(), 1);
         }
         if output.contains("%d") {
             panic!("Mismatch between format string and arguments");
@@ -246,7 +258,11 @@ impl VM {
 }
 
 pub fn generate(program: Vec<ASTNode>) -> (Vec<Instruction>, HashMap<String, Function>) {
-    let mut instructions = vec![Instruction::CALL("main".to_string())];
+    //let mut instructions = vec![Instruction::CALL("main".to_string())];
+    let mut instructions = vec![
+        Instruction::CALL("main".to_string()),
+        Instruction::EXIT, // ← make sure EXIT happens AFTER main returns
+    ];
     let mut functions = HashMap::new();
     let mut func_defs = Vec::new();
 
@@ -263,7 +279,9 @@ pub fn generate(program: Vec<ASTNode>) -> (Vec<Instruction>, HashMap<String, Fun
     for node in func_defs {
         if let ASTNode::FuncDef { name, params, body, .. } = node {
             let start_addr = instructions.len();
-            for stmt in body {
+            println!("Generating function '{}':", name);
+            for stmt in &body {
+                println!("--> {:?}", stmt);
                 generate_node_with_push(&stmt, &mut instructions, false);
             }
 
@@ -284,8 +302,12 @@ pub fn generate(program: Vec<ASTNode>) -> (Vec<Instruction>, HashMap<String, Fun
             );
         }
     }
+    println!("Generated instructions:");
+    for (i, instr) in instructions.iter().enumerate() {
+        println!("{:03}: {:?}", i, instr);
+    }
 
-    instructions.push(Instruction::EXIT);
+    //instructions.push(Instruction::EXIT);
     (instructions, functions)
 }
 
@@ -304,6 +326,15 @@ fn generate_node_with_push(node: &ASTNode, instructions: &mut Vec<Instruction>, 
             if push_result {
                 instructions.push(Instruction::PUSH);
             }
+        }
+        ASTNode::Str(message) => {
+            if push_result {
+                panic!("Unexpected string literal used as an expression");
+            }
+        }
+        ASTNode::DeclAssign { name, value, .. } => {
+            generate_node_with_push(value, instructions, true);
+            instructions.push(Instruction::STORE(name.clone()));
         }
         ASTNode::Assign { name, value } => {
             generate_node_with_push(value, instructions, true);
@@ -356,12 +387,18 @@ fn generate_node_with_push(node: &ASTNode, instructions: &mut Vec<Instruction>, 
                 match &args[0] {
                     ASTNode::Str(message) => {
                         let mut fmt_args = Vec::new();
-                        for arg in &args[1..] {
-                            if let ASTNode::Id(var_name) = arg {
-                                fmt_args.push(var_name.clone());
-                            } else {
-                                panic!("Only variable identifiers allowed as printf arguments");
-                            }
+                        // for arg in &args[1..] {
+                        //     if let ASTNode::Id(var_name) = arg {
+                        //         fmt_args.push(var_name.clone());
+                        //     } else {
+                        //         panic!("Only variable identifiers allowed as printf arguments");
+                        //     }
+                        // }
+                        for (i, arg) in args.iter().enumerate().skip(1) {
+                            let arg_name = format!("__printf_arg_{}", i);
+                            generate_node_with_push(arg, instructions, true);
+                            // Store in a pseudo-variable slot (not actually used by VM logic — it's symbolic)
+                            fmt_args.push(arg_name);
                         }
                         println!("Generating PRINTF: fmt = {:?}, args = {:?}", message, fmt_args);
                         instructions.push(Instruction::PRINTF(message.clone(), fmt_args));

@@ -1,15 +1,12 @@
-int add(int a, int b) {
-    return a + b;
-}
-
-int square(int x) {
-    return x * x;
+int add(int a)
+{
+    return a + 2;
 }
 
 int main() {
-    x = add(3, 4);
-    y = square(x);
-    printf("x = %d", x);
-    printf("y = %d", y);
+    int y = add(10);
+    int x = 10;
+    printf("x is %d", x);
+    printf("y is %d", y);
     return 0;
 }

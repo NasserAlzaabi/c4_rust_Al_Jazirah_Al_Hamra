@@ -326,33 +326,26 @@ impl Parser {
 		if self.current() != Some(&Token::If) {
 			return None;
 		}
-		println!("Parsing: found IF");
 		self.advance(); // consume 'if'
 	
 		if self.current() != Some(&Token::LParen) {
-			println!("Error: expected '(' after if");
 			return None;
 		}
 		self.advance(); // consume '('
 	
 		let cond = self.parse_expr()?;
-		println!("Parsed IF condition: {:?}", cond);
 	
 		if self.current() != Some(&Token::RParen) {
-			println!("Error: expected ')' after condition");
 			return None;
 		}
 		self.advance(); // consume ')'
 	
 		let then_branch = self.parse_stmt()?;
-		println!("Parsed THEN branch: {:?}", then_branch);
 	
 		let else_branch = if self.current() == Some(&Token::Else) {
-			println!("Parsing ELSE branch");
 			self.advance(); // consume 'else'
 			Some(Box::new(self.parse_stmt()?))
 		} else {
-			println!("No ELSE branch found");
 			None
 		};
 	
@@ -361,8 +354,7 @@ impl Parser {
 			then_branch: Box::new(then_branch),
 			else_branch,
 		};
-	
-		println!("Constructed IF node: {:#?}", node);
+
 		Some(node)
 	}
 	

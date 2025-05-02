@@ -40,11 +40,11 @@ fn main() {
 
     let (mut instructions, functions) = generate(ast_nodes);
 
-    if let Some(main_function) = functions.get("main") {
-        instructions.insert(0, Instruction::CALL(main_function.name.clone())); // Start execution from main
-    } else {
-        panic!("No main function found!");
-    }
+    // if let Some(main_function) = functions.get("main") {
+    //     instructions.insert(0, Instruction::CALL(main_function.name.clone())); // Start execution from main
+    // } else {
+    //     panic!("No main function found!");
+    // }
 
     let mut vm = VM::new(instructions, functions);
     let result = vm.run();
