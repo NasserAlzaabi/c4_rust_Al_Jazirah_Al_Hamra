@@ -403,6 +403,63 @@ fn test_else_if_chain_complete() {
 	assert_eq!(ast, expected);
 }
 
+#[test]
+fn test_func_with_if_else() {
+	let tokens = vec![
+		Token::Int,
+		Token::Id("check".to_string()),
+		Token::LParen,
+		Token::Int,
+		Token::Id("x".to_string()),
+		Token::RParen,
+		Token::LBrace,
+		Token::If,
+		Token::LParen,
+		Token::Id("x".to_string()),
+		Token::Eq,
+		Token::Num(0),
+		Token::RParen,
+		Token::Return,
+		Token::Num(1),
+		Token::Semicolon,
+		Token::Else,
+		Token::Return,
+		Token::Num(2),
+		Token::Semicolon,
+		Token::RBrace,
+		Token::EOF,
+	];
+
+	let mut parser = Parser::new(tokens);
+	let ast = parser.parse_program();
+
+	let expected = vec![
+		ASTNode::FuncDef {
+			return_type: Token::Int,
+			name: "check".to_string(),
+			params: vec![(Token::Int, "x".to_string())],
+			body: vec![
+				ASTNode::If {
+					cond: Box::new(ASTNode::BinaryOp {
+						op: Token::Eq,
+						left: Box::new(ASTNode::Id("x".to_string())),
+						right: Box::new(ASTNode::Num(0)),
+					}),
+					then_branch: Box::new(ASTNode::FuncCall {
+						name: "return".to_string(),
+						args: vec![ASTNode::Num(1)],
+					}),
+					else_branch: Some(Box::new(ASTNode::FuncCall {
+						name: "return".to_string(),
+						args: vec![ASTNode::Num(2)],
+					})),
+				}
+			],
+		}
+	];
+
+	assert_eq!(ast, expected);
+}
 
 
 #[test]
