@@ -37,6 +37,7 @@ pub struct VM {
     pub variables: HashMap<String, i32>,
     pub functions: HashMap<String, Function>,
     pub call_stack: Vec<usize>,
+    pub variable_stack: Vec<HashMap<String, i32>>,
 }
 
 impl VM {
@@ -51,6 +52,7 @@ impl VM {
             variables: HashMap::new(),
             functions,
             call_stack: Vec::new(),
+            variable_stack: vec![HashMap::new()],
         }
     }
 
@@ -191,10 +193,26 @@ impl VM {
             );
             self.call_stack.push(self.pc); // Save the return address
             self.pc = func.start_addr; // Jump to the function
+    
+            // Handle function parameters
+            let param_count = func.params.len();
+            let mut param_values = Vec::new();
+            for _ in 0..param_count {
+                self.sp -= 1;
+                param_values.push(self.stack[self.sp]);
+            }
+            param_values.reverse(); // Reverse to maintain the correct order
+    
+            // Create a new scope for the function's variables
+            let mut local_vars = HashMap::new();
+            for (param_name, value) in func.params.iter().zip(param_values.iter()) {
+                local_vars.insert(param_name.clone(), *value);
+            }
+            self.variable_stack.push(local_vars);
         } else {
             panic!("Undefined function: {}", name);
         }
-    }    
+    }  
 
     fn exec_return(&mut self) {
         println!(
@@ -222,12 +240,21 @@ impl VM {
     }        
 
     fn exec_store(&mut self, name: &str) {
-        println!("Storing variable: {} = {}", name, self.ax);
-        self.variables.insert(name.to_string(), self.ax);
-    }    
-
+        if let Some(scope) = self.variable_stack.last_mut() {
+            scope.insert(name.to_string(), self.ax);
+        } else {
+            panic!("No variable scope found");
+        }
+    }
+    
     fn exec_load(&mut self, name: String) {
-        self.ax = *self.variables.get(&name).unwrap_or(&0);
+        for scope in self.variable_stack.iter().rev() {
+            if let Some(value) = scope.get(&name) {
+                self.ax = *value;
+                return;
+            }
+        }
+        panic!("Undefined variable: {}", name);
     }
     
     pub fn exec_printf(&mut self, fmt: &String, args: &Vec<String>) {

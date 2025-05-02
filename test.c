@@ -4,7 +4,7 @@ int add(int a)
 }
 
 int main() {
-    int y = add(10);
+    int y = 10 + 2;
     int x = 10;
     printf("x is %d", x);
     printf("y is %d", y);
