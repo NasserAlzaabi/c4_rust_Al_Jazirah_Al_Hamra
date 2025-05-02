@@ -1,0 +1,1 @@
+C:\Users\user\Desktop\Projects\c4_rust_Al_Jazirah_Al_Hamra\target\debug\libc4.rlib: C:\Users\user\Desktop\Projects\c4_rust_Al_Jazirah_Al_Hamra\src\VM.rs C:\Users\user\Desktop\Projects\c4_rust_Al_Jazirah_Al_Hamra\src\lexer.rs C:\Users\user\Desktop\Projects\c4_rust_Al_Jazirah_Al_Hamra\src\lib.rs C:\Users\user\Desktop\Projects\c4_rust_Al_Jazirah_Al_Hamra\src\parser.rs

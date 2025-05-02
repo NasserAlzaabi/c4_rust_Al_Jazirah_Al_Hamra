@@ -44,6 +44,7 @@ pub enum ASTNode {
 	Num(i64),                //Number
 	Id(String),              //Identifier
 	Str(String),
+	Return(Box<ASTNode>),
 	UnaryOp {
 		op: Token,
 		expr: Box<ASTNode>,
@@ -238,9 +239,8 @@ impl Parser {
 				}
 	
 				if let Some(stmt) = self.parse_if()
-				.or_else(|| self.parse_decl())
-				.or_else(|| self.parse_expr())
-				// if let Some(stmt) = self.parse_stmt()
+					.or_else(|| self.parse_decl())
+					.or_else(|| self.parse_expr())
 				{
 					body.push(stmt);
 					if self.current() == Some(&Token::Semicolon) {
@@ -260,22 +260,19 @@ impl Parser {
 				name: "__block".into(),
 				args: body, // crude way to group — you can define a Block(Vec<ASTNode>) if preferred
 			})
-        } else if self.current() == Some(&Token::Return) {
-            self.advance(); // consume 'return'
-            let expr = self.parse_expr()?;
-            if self.current() == Some(&Token::Semicolon) {
-                self.advance();
-            }
-            Some(ASTNode::FuncCall {
-                name: "return".into(),
-                args: vec![expr],
-            })
+		} else if self.current() == Some(&Token::Return) {
+			self.advance(); // consume 'return'
+			let expr = self.parse_expr()?; // Parse the return expression
+			if self.current() == Some(&Token::Semicolon) {
+				self.advance(); // Consume ';'
+			}
+			Some(ASTNode::Return(Box::new(expr))) // Correct ASTNode
 		} else {
 			let stmt = self.parse_func_def()
-			.or_else(|| self.parse_if())
-			.or_else(|| self.parse_decl())
-			.or_else(|| self.parse_expr())?;
-
+				.or_else(|| self.parse_if())
+				.or_else(|| self.parse_decl())
+				.or_else(|| self.parse_expr())?;
+	
 			if self.current() == Some(&Token::Semicolon) {
 				match &stmt {
 					ASTNode::If { .. } => {
@@ -289,6 +286,7 @@ impl Parser {
 			Some(stmt)
 		}
 	}
+	
 	
 
 	// pub fn parse_if(&mut self) -> Option<ASTNode> {
