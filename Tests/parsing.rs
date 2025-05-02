@@ -64,6 +64,346 @@ fn test_parse_function_with_declaration() {
     assert_eq!(ast, expected);
 }
 
+#[test]
+fn test_parse_function_with_two_params_and_body() {
+    let tokens = vec![
+        Token::Int,
+        Token::Id("add".into()),
+        Token::LParen,
+        Token::Int,
+        Token::Id("a".into()),
+        Token::Comma,
+        Token::Int,
+        Token::Id("b".into()),
+        Token::RParen,
+        Token::LBrace,
+        Token::Int,
+        Token::Id("sum".into()),
+        Token::Assign,
+        Token::Id("a".into()),
+        Token::Add,
+        Token::Id("b".into()),
+        Token::Semicolon,
+        Token::RBrace,
+        Token::EOF,
+    ];
+    let mut parser = Parser::new(tokens);
+    let ast = parser.parse_func_def();
+
+    let expected_ast = Some(ASTNode::FuncDef {
+        return_type: Token::Int,
+        name: "add".to_string(),
+        params: vec![
+            (Token::Int, "a".to_string()),
+            (Token::Int, "b".to_string()),
+        ],
+        body: vec![
+            ASTNode::DeclAssign {
+                typename: Token::Int,
+                name: "sum".to_string(),
+                value: Box::new(ASTNode::BinaryOp {
+                    op: Token::Add,
+                    left: Box::new(ASTNode::Id("a".to_string())),
+                    right: Box::new(ASTNode::Id("b".to_string())),
+                }),
+            },
+        ],
+    });
+
+    assert_eq!(ast, expected_ast);
+}
+
+#[test]
+fn test_parse_function_with_no_params_and_return() {
+    let tokens = vec![
+        Token::Int,
+        Token::Id("getValue".into()),
+        Token::LParen,
+        Token::RParen,
+        Token::LBrace,
+        Token::Int,
+        Token::Id("x".into()),
+        Token::Assign,
+        Token::Num(100),
+        Token::Semicolon,
+        Token::Return,
+        Token::Id("x".into()),
+        Token::Semicolon,
+        Token::RBrace,
+        Token::EOF,
+    ];
+    let mut parser = Parser::new(tokens);
+    let ast = parser.parse_func_def();
+
+    let expected_ast = Some(ASTNode::FuncDef {
+        return_type: Token::Int,
+        name: "getValue".to_string(),
+        params: vec![],
+        body: vec![
+            ASTNode::DeclAssign {
+                typename: Token::Int,
+                name: "x".to_string(),
+                value: Box::new(ASTNode::Num(100)),
+            },
+            ASTNode::FuncCall {
+                name: "return".into(),
+                args: vec![ASTNode::Id("x".into())],
+            },
+        ],
+    });
+
+    assert_eq!(ast, expected_ast);
+}
+
+#[test]
+fn test_parse_simple_if() {
+    let tokens = vec![
+        Token::If,
+        Token::LParen,
+        Token::Num(1),
+        Token::RParen,
+        Token::Id("x".to_string()),
+        Token::Assign,
+        Token::Num(5),
+        Token::Semicolon,
+        Token::EOF,
+    ];
+
+    let mut parser = Parser::new(tokens);
+    let ast = parser.parse_program();
+
+    let expected = vec![
+        ASTNode::If {
+            cond: Box::new(ASTNode::Num(1)),
+            then_branch: Box::new(ASTNode::Assign {
+                name: "x".to_string(),
+                value: Box::new(ASTNode::Num(5)),
+            }),
+            else_branch: None,
+        }
+    ];
+
+    assert_eq!(ast, expected);
+}
+
+#[test]
+fn test_parse_if_else() {
+    let tokens = vec![
+        Token::If,
+        Token::LParen,
+        Token::Id("x".to_string()),
+        Token::Eq,
+        Token::Num(0),
+        Token::RParen,
+        Token::Id("y".to_string()),
+        Token::Assign,
+        Token::Num(1),
+        Token::Semicolon,
+        Token::Else,
+        Token::Id("y".to_string()),
+        Token::Assign,
+        Token::Num(2),
+        Token::Semicolon,
+        Token::EOF,
+    ];
+
+    let mut parser = Parser::new(tokens);
+    let ast = parser.parse_program();
+
+    let expected = vec![
+        ASTNode::If {
+            cond: Box::new(ASTNode::BinaryOp {
+                op: Token::Eq,
+                left: Box::new(ASTNode::Id("x".to_string())),
+                right: Box::new(ASTNode::Num(0)),
+            }),
+            then_branch: Box::new(ASTNode::Assign {
+                name: "y".to_string(),
+                value: Box::new(ASTNode::Num(1)),
+            }),
+            else_branch: Some(Box::new(ASTNode::Assign {
+                name: "y".to_string(),
+                value: Box::new(ASTNode::Num(2)),
+            })),
+        }
+    ];
+
+    assert_eq!(ast, expected);
+}
+
+#[test]
+fn test_if_with_block_then() {
+	let tokens = vec![
+		Token::If,
+		Token::LParen,
+		Token::Num(1),
+		Token::RParen,
+		Token::LBrace,
+		Token::Id("a".to_string()),
+		Token::Assign,
+		Token::Num(1),
+		Token::Semicolon,
+		Token::Id("b".to_string()),
+		Token::Assign,
+		Token::Num(2),
+		Token::Semicolon,
+		Token::RBrace,
+		Token::EOF,
+	];
+
+	let mut parser = Parser::new(tokens);
+	let ast = parser.parse_program();
+
+	let expected = vec![
+		ASTNode::If {
+			cond: Box::new(ASTNode::Num(1)),
+			then_branch: Box::new(ASTNode::FuncCall {
+				name: "__block".to_string(),
+				args: vec![
+					ASTNode::Assign {
+						name: "a".to_string(),
+						value: Box::new(ASTNode::Num(1)),
+					},
+					ASTNode::Assign {
+						name: "b".to_string(),
+						value: Box::new(ASTNode::Num(2)),
+					},
+				],
+			}),
+			else_branch: None,
+		},
+	];
+
+	assert_eq!(ast, expected);
+}
+
+#[test]
+fn test_nested_if_else() {
+	let tokens = vec![
+		Token::If,
+		Token::LParen,
+		Token::Id("x".to_string()),
+		Token::Gt,
+		Token::Num(0),
+		Token::RParen,
+		Token::If,
+		Token::LParen,
+		Token::Id("y".to_string()),
+		Token::Lt,
+		Token::Num(5),
+		Token::RParen,
+		Token::Id("z".to_string()),
+		Token::Assign,
+		Token::Num(1),
+		Token::Semicolon,
+		Token::Else,
+		Token::Id("z".to_string()),
+		Token::Assign,
+		Token::Num(2),
+		Token::Semicolon,
+		Token::EOF,
+	];
+
+	let mut parser = Parser::new(tokens);
+	let ast = parser.parse_program();
+
+	let expected = vec![
+		ASTNode::If {
+			cond: Box::new(ASTNode::BinaryOp {
+				op: Token::Gt,
+				left: Box::new(ASTNode::Id("x".to_string())),
+				right: Box::new(ASTNode::Num(0)),
+			}),
+			then_branch: Box::new(ASTNode::If {
+				cond: Box::new(ASTNode::BinaryOp {
+					op: Token::Lt,
+					left: Box::new(ASTNode::Id("y".to_string())),
+					right: Box::new(ASTNode::Num(5)),
+				}),
+				then_branch: Box::new(ASTNode::Assign {
+					name: "z".to_string(),
+					value: Box::new(ASTNode::Num(1)),
+				}),
+				else_branch: Some(Box::new(ASTNode::Assign {
+					name: "z".to_string(),
+					value: Box::new(ASTNode::Num(2)),
+				})),
+			}),
+			else_branch: None,
+		}
+	];
+
+	assert_eq!(ast, expected);
+}
+
+#[test]
+fn test_else_if_chain_complete() {
+	let tokens = vec![
+		Token::If,
+		Token::LParen,
+		Token::Id("x".to_string()),
+		Token::Lt,
+		Token::Num(0),
+		Token::RParen,
+		Token::Id("y".to_string()),
+		Token::Assign,
+		Token::Num(10),
+		Token::Semicolon,
+		Token::Else,
+		Token::If,
+		Token::LParen,
+		Token::Id("x".to_string()),
+		Token::Gt,
+		Token::Num(0),
+		Token::RParen,
+		Token::Id("y".to_string()),
+		Token::Assign,
+		Token::Num(20),
+		Token::Semicolon,
+		Token::Else,
+		Token::Id("y".to_string()),
+		Token::Assign,
+		Token::Num(30),
+		Token::Semicolon,
+		Token::EOF,
+	];
+
+	let mut parser = Parser::new(tokens);
+	let ast = parser.parse_program();
+
+	let expected = vec![
+		ASTNode::If {
+			cond: Box::new(ASTNode::BinaryOp {
+				op: Token::Lt,
+				left: Box::new(ASTNode::Id("x".to_string())),
+				right: Box::new(ASTNode::Num(0)),
+			}),
+			then_branch: Box::new(ASTNode::Assign {
+				name: "y".to_string(),
+				value: Box::new(ASTNode::Num(10)),
+			}),
+			else_branch: Some(Box::new(ASTNode::If {
+				cond: Box::new(ASTNode::BinaryOp {
+					op: Token::Gt,
+					left: Box::new(ASTNode::Id("x".to_string())),
+					right: Box::new(ASTNode::Num(0)),
+				}),
+				then_branch: Box::new(ASTNode::Assign {
+					name: "y".to_string(),
+					value: Box::new(ASTNode::Num(20)),
+				}),
+				else_branch: Some(Box::new(ASTNode::Assign {
+					name: "y".to_string(),
+					value: Box::new(ASTNode::Num(30)),
+				})),
+			})),
+		}
+	];
+
+	assert_eq!(ast, expected);
+}
+
+
 
 #[test]
 fn test_parse_simple_declaration_assignment() {

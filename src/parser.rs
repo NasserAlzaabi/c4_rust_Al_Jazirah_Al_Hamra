@@ -240,6 +240,7 @@ impl Parser {
 				if let Some(stmt) = self.parse_if()
 				.or_else(|| self.parse_decl())
 				.or_else(|| self.parse_expr())
+				// if let Some(stmt) = self.parse_stmt()
 				{
 					body.push(stmt);
 					if self.current() == Some(&Token::Semicolon) {
@@ -259,48 +260,114 @@ impl Parser {
 				name: "__block".into(),
 				args: body, // crude way to group — you can define a Block(Vec<ASTNode>) if preferred
 			})
+        } else if self.current() == Some(&Token::Return) {
+            self.advance(); // consume 'return'
+            let expr = self.parse_expr()?;
+            if self.current() == Some(&Token::Semicolon) {
+                self.advance();
+            }
+            Some(ASTNode::FuncCall {
+                name: "return".into(),
+                args: vec![expr],
+            })
 		} else {
-			self.parse_func_def()
-				.or_else(|| self.parse_if())
-				.or_else(|| self.parse_decl())
-				.or_else(|| self.parse_expr())
+			let stmt = self.parse_func_def()
+			.or_else(|| self.parse_if())
+			.or_else(|| self.parse_decl())
+			.or_else(|| self.parse_expr())?;
+
+			if self.current() == Some(&Token::Semicolon) {
+				match &stmt {
+					ASTNode::If { .. } => {
+						// do NOT consume ; here — let parent handle it in context
+					}
+					_ => {
+						self.advance();
+					}
+				}
+			}
+			Some(stmt)
 		}
 	}
 	
 
+	// pub fn parse_if(&mut self) -> Option<ASTNode> {
+	// 	if self.current() != Some(&Token::If) {
+	// 		return None;
+	// 	}
+	// 	self.advance(); // consume 'if'
+	
+	// 	if self.current() != Some(&Token::LParen) {
+	// 		return None;
+	// 	}
+	// 	self.advance(); // consume '('
+	
+	// 	let cond = self.parse_expr()?; // parse condition
+	
+	// 	if self.current() != Some(&Token::RParen) {
+	// 		return None;
+	// 	}
+	// 	self.advance(); // consume ')'
+	
+	// 	let then_branch = self.parse_stmt()?; // parse then statement
+	
+	// 	let else_branch = if self.current() == Some(&Token::Else) {
+	// 		self.advance(); // consume 'else'
+	// 		Some(Box::new(self.parse_stmt()?))
+	// 	} else {
+	// 		None
+	// 	};
+	
+	// 	Some(ASTNode::If {
+	// 		cond: Box::new(cond),
+	// 		then_branch: Box::new(then_branch),
+	// 		else_branch,
+	// 	})
+	// }
 	pub fn parse_if(&mut self) -> Option<ASTNode> {
 		if self.current() != Some(&Token::If) {
 			return None;
 		}
+		println!("Parsing: found IF");
 		self.advance(); // consume 'if'
 	
 		if self.current() != Some(&Token::LParen) {
+			println!("Error: expected '(' after if");
 			return None;
 		}
 		self.advance(); // consume '('
 	
-		let cond = self.parse_expr()?; // parse condition
+		let cond = self.parse_expr()?;
+		println!("Parsed IF condition: {:?}", cond);
 	
 		if self.current() != Some(&Token::RParen) {
+			println!("Error: expected ')' after condition");
 			return None;
 		}
 		self.advance(); // consume ')'
 	
-		let then_branch = self.parse_stmt()?; // parse then statement
+		let then_branch = self.parse_stmt()?;
+		println!("Parsed THEN branch: {:?}", then_branch);
 	
 		let else_branch = if self.current() == Some(&Token::Else) {
+			println!("Parsing ELSE branch");
 			self.advance(); // consume 'else'
 			Some(Box::new(self.parse_stmt()?))
 		} else {
+			println!("No ELSE branch found");
 			None
 		};
 	
-		Some(ASTNode::If {
+		let node = ASTNode::If {
 			cond: Box::new(cond),
 			then_branch: Box::new(then_branch),
 			else_branch,
-		})
+		};
+	
+		println!("Constructed IF node: {:#?}", node);
+		Some(node)
 	}
+	
 	
 
 	pub fn parse_decl(&mut self) -> Option<ASTNode> {
@@ -309,9 +376,7 @@ impl Parser {
 			Token::Void | Token::Short | Token::Long => self.current()?.clone(),
 			_ => return None,
 		};
-	
-		// Only skip function definitions at the very beginning of the program (global scope)
-		// This avoids misparsing int main(...) as a declaration instead of a function
+
 		if self.pos == 0 {
 			if let Some(Token::Id(_)) = self.tokens.get(self.pos + 1) {
 				if self.tokens.get(self.pos + 2) == Some(&Token::LParen) {
@@ -339,11 +404,6 @@ impl Parser {
 	
 		Some(ASTNode::Decl { typename, name })
 	}
-	
-	
-	
-	
-	
 	
 	pub fn parse_func_def(&mut self) -> Option<ASTNode> {	
 		let return_type = match self.current()? {
@@ -415,6 +475,7 @@ impl Parser {
 			if let Some(stmt) = self.parse_if()
 			.or_else(|| self.parse_decl())
 			.or_else(|| self.parse_expr())
+			.or_else(|| self.parse_stmt())
 			{		
 				body.push(stmt);
 				if self.current() == Some(&Token::Semicolon) {
@@ -440,7 +501,6 @@ impl Parser {
 	}
 	
 	
-
 	pub fn parse_expr(&mut self) -> Option<ASTNode> {
 		let node = self.parse_binary(0)?;
 	
@@ -477,11 +537,57 @@ impl Parser {
 		Some(node)
 	}
 
+	// pub fn parse_program(&mut self) -> Vec<ASTNode> {
+	// 	let mut nodes = Vec::new();
+	
+	// 	while self.current() != Some(&Token::EOF) {
+	
+	// 		if self.current() == Some(&Token::Semicolon) {
+	// 			self.advance();
+	// 			continue;
+	// 		}
+	
+	// 		let snapshot = self.pos;
+	
+	// 		if let Some(stmt) = self.parse_func_def() {
+	// 			nodes.push(stmt);
+	// 			continue;
+	// 		}
+	
+	// 		self.pos = snapshot;
+	// 		if let Some(stmt) = self.parse_if() {
+	// 			nodes.push(stmt);
+	// 			if self.current() == Some(&Token::Semicolon) {
+	// 				self.advance();
+	// 			}
+	// 			continue;
+	// 		}
+	
+	// 		self.pos = snapshot;
+	// 		if let Some(stmt) = self.parse_decl() {
+	// 			nodes.push(stmt);
+	// 			if self.current() == Some(&Token::Semicolon) {
+	// 				self.advance();
+	// 			}
+	// 			continue;
+	// 		}
+	
+	// 		self.pos = snapshot;
+	// 		if let Some(stmt) = self.parse_expr() {
+	// 			nodes.push(stmt);
+	// 			if self.current() == Some(&Token::Semicolon) {
+	// 				self.advance();
+	// 			}
+	// 			continue;
+	// 		}
+	// 		break;
+	// 	}
+	// 	nodes
+	// }
 	pub fn parse_program(&mut self) -> Vec<ASTNode> {
 		let mut nodes = Vec::new();
 	
 		while self.current() != Some(&Token::EOF) {
-	
 			if self.current() == Some(&Token::Semicolon) {
 				self.advance();
 				continue;
@@ -489,14 +595,17 @@ impl Parser {
 	
 			let snapshot = self.pos;
 	
-			if let Some(stmt) = self.parse_func_def() {
-				nodes.push(stmt);
+			// Try function definition first
+			if let Some(func_def) = self.parse_func_def() {
+				nodes.push(func_def);
 				continue;
 			}
 	
 			self.pos = snapshot;
-			if let Some(stmt) = self.parse_if() {
-				nodes.push(stmt);
+	
+			// Try top-level variable declaration (like: int x = 10;)
+			if let Some(decl) = self.parse_decl() {
+				nodes.push(decl);
 				if self.current() == Some(&Token::Semicolon) {
 					self.advance();
 				}
@@ -504,7 +613,9 @@ impl Parser {
 			}
 	
 			self.pos = snapshot;
-			if let Some(stmt) = self.parse_decl() {
+	
+			// Try statement (includes if, return, expr, block, etc.)
+			if let Some(stmt) = self.parse_stmt() {
 				nodes.push(stmt);
 				if self.current() == Some(&Token::Semicolon) {
 					self.advance();
@@ -512,16 +623,13 @@ impl Parser {
 				continue;
 			}
 	
+			// Could not parse anything, break
 			self.pos = snapshot;
-			if let Some(stmt) = self.parse_expr() {
-				nodes.push(stmt);
-				if self.current() == Some(&Token::Semicolon) {
-					self.advance();
-				}
-				continue;
-			}
 			break;
 		}
+	
 		nodes
 	}
+	
+	
 }
