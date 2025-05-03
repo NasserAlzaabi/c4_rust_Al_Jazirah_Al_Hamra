@@ -44,6 +44,8 @@ pub enum ASTNode {
 	Num(i64),                //Number
 	Id(String),              //Identifier
 	Str(String),
+	Return(Box<ASTNode>),
+	Block(Vec<ASTNode>),
 	UnaryOp {
 		op: Token,
 		expr: Box<ASTNode>,
@@ -89,16 +91,21 @@ pub enum ASTNode {
 		name: String,
 		value: Box<ASTNode>,
 	},
+	WhileLoop {
+        condition: Box<ASTNode>,
+        body: Vec<ASTNode>,
+    },
 }
 
 pub struct Parser {
 	tokens: Vec<Token>,
 	pos: usize,
+	current_token: Token,
 }
 
 impl Parser {
 	pub fn new(tokens: Vec<Token>) -> Self {
-		Parser { tokens, pos: 0 }
+		Parser { tokens, pos: 0, current_token: Token::EOF }
 	}
 
 	fn current(&self) -> Option<&Token> {
@@ -110,6 +117,23 @@ impl Parser {
 			self.pos += 1;
 		}
 	}
+
+	fn expect(&mut self, expected: Token) {
+        if self.current() == Some(&expected) {
+            self.advance(); // Move to the next token
+        } else {
+            panic!(
+                "Expected token {:?}, but found {:?}",
+                expected, self.current()
+            );
+        }
+    }
+
+    fn next_token(&mut self) -> Token {
+        // Logic to fetch the next token
+        // Replace this with your actual implementation
+        Token::EOF
+    }
 
 	pub fn parse_primary(&mut self) -> Option<ASTNode> {
 		match self.current() {
@@ -238,8 +262,9 @@ impl Parser {
 				}
 	
 				if let Some(stmt) = self.parse_if()
-				.or_else(|| self.parse_decl())
-				.or_else(|| self.parse_expr())
+					.or_else(|| self.parse_while())
+					.or_else(|| self.parse_decl())
+					.or_else(|| self.parse_expr())
 				{
 					body.push(stmt);
 					if self.current() == Some(&Token::Semicolon) {
@@ -257,15 +282,35 @@ impl Parser {
 			// Wrap body in a block node (optional)
 			Some(ASTNode::FuncCall {
 				name: "__block".into(),
-				args: body, // crude way to group — you can define a Block(Vec<ASTNode>) if preferred
+				args: body,
 			})
+		} else if self.current() == Some(&Token::Return) {
+			self.advance(); // consume 'return'
+			let expr = self.parse_expr()?; // Parse the return expression
+			if self.current() == Some(&Token::Semicolon) {
+				self.advance(); // Consume ';'
+			}
+			Some(ASTNode::Return(Box::new(expr)))
 		} else {
-			self.parse_func_def()
+			let stmt = self.parse_func_def()
 				.or_else(|| self.parse_if())
+				.or_else(|| self.parse_while()) // ADD THIS LINE
 				.or_else(|| self.parse_decl())
-				.or_else(|| self.parse_expr())
+				.or_else(|| self.parse_expr())?;
+	
+			if self.current() == Some(&Token::Semicolon) {
+				match &stmt {
+					ASTNode::If { .. } | ASTNode::WhileLoop { .. } => {
+						// Do NOT consume ';' — block handles it
+					}
+					_ => {
+						self.advance();
+					}
+				}
+			}
+			Some(stmt)
 		}
-	}
+	}	
 	
 
 	pub fn parse_if(&mut self) -> Option<ASTNode> {
@@ -279,18 +324,17 @@ impl Parser {
 		}
 		self.advance(); // consume '('
 	
-		let cond = self.parse_expr()?; // parse condition
+		let cond = self.parse_expr()?;
 	
 		if self.current() != Some(&Token::RParen) {
 			return None;
 		}
 		self.advance(); // consume ')'
 	
-		let then_branch = self.parse_stmt()?; // parse then statement
-	
+		let then_branch = self.parse_block()?; // Parse the 'then' branch as a block
 		let else_branch = if self.current() == Some(&Token::Else) {
 			self.advance(); // consume 'else'
-			Some(Box::new(self.parse_stmt()?))
+			Some(self.parse_block()?) // Parse the 'else' branch as a block
 		} else {
 			None
 		};
@@ -298,10 +342,31 @@ impl Parser {
 		Some(ASTNode::If {
 			cond: Box::new(cond),
 			then_branch: Box::new(then_branch),
-			else_branch,
+			else_branch: else_branch.map(Box::new), // Wrap else_branch in a Box
 		})
 	}
 	
+	pub fn parse_while(&mut self) -> Option<ASTNode> {
+	    if self.current() == Some(&Token::While) {
+	        self.advance(); // Consume 'while'
+	        self.expect(Token::LParen); // Expect '('
+	        let condition = self.parse_expr()?; // Parse condition
+	        self.expect(Token::RParen); // Expect ')'
+
+	        // Parse the loop body
+	        let body = match self.parse_block()? {
+	            ASTNode::Block(statements) => statements, // Extract the Vec<ASTNode> from the Block
+	            _ => return None,
+	        };
+
+	        Some(ASTNode::WhileLoop {
+	            condition: Box::new(condition),
+	            body,
+	        })
+	    } else {
+	        None
+	    }
+	}	
 
 	pub fn parse_decl(&mut self) -> Option<ASTNode> {
 		let typename = match self.current()? {
@@ -309,9 +374,7 @@ impl Parser {
 			Token::Void | Token::Short | Token::Long => self.current()?.clone(),
 			_ => return None,
 		};
-	
-		// Only skip function definitions at the very beginning of the program (global scope)
-		// This avoids misparsing int main(...) as a declaration instead of a function
+
 		if self.pos == 0 {
 			if let Some(Token::Id(_)) = self.tokens.get(self.pos + 1) {
 				if self.tokens.get(self.pos + 2) == Some(&Token::LParen) {
@@ -339,11 +402,6 @@ impl Parser {
 	
 		Some(ASTNode::Decl { typename, name })
 	}
-	
-	
-	
-	
-	
 	
 	pub fn parse_func_def(&mut self) -> Option<ASTNode> {	
 		let return_type = match self.current()? {
@@ -415,6 +473,7 @@ impl Parser {
 			if let Some(stmt) = self.parse_if()
 			.or_else(|| self.parse_decl())
 			.or_else(|| self.parse_expr())
+			.or_else(|| self.parse_stmt())
 			{		
 				body.push(stmt);
 				if self.current() == Some(&Token::Semicolon) {
@@ -440,7 +499,6 @@ impl Parser {
 	}
 	
 	
-
 	pub fn parse_expr(&mut self) -> Option<ASTNode> {
 		let node = self.parse_binary(0)?;
 	
@@ -481,7 +539,6 @@ impl Parser {
 		let mut nodes = Vec::new();
 	
 		while self.current() != Some(&Token::EOF) {
-	
 			if self.current() == Some(&Token::Semicolon) {
 				self.advance();
 				continue;
@@ -489,14 +546,17 @@ impl Parser {
 	
 			let snapshot = self.pos;
 	
-			if let Some(stmt) = self.parse_func_def() {
-				nodes.push(stmt);
+			// Try function definition first
+			if let Some(func_def) = self.parse_func_def() {
+				nodes.push(func_def);
 				continue;
 			}
 	
 			self.pos = snapshot;
-			if let Some(stmt) = self.parse_if() {
-				nodes.push(stmt);
+	
+			// Try top-level variable declaration (like: int x = 10;)
+			if let Some(decl) = self.parse_decl() {
+				nodes.push(decl);
 				if self.current() == Some(&Token::Semicolon) {
 					self.advance();
 				}
@@ -504,7 +564,9 @@ impl Parser {
 			}
 	
 			self.pos = snapshot;
-			if let Some(stmt) = self.parse_decl() {
+	
+			// Try statement (includes if, return, expr, block, etc.)
+			if let Some(stmt) = self.parse_stmt() {
 				nodes.push(stmt);
 				if self.current() == Some(&Token::Semicolon) {
 					self.advance();
@@ -512,16 +574,30 @@ impl Parser {
 				continue;
 			}
 	
+			// Could not parse anything, break
 			self.pos = snapshot;
-			if let Some(stmt) = self.parse_expr() {
-				nodes.push(stmt);
-				if self.current() == Some(&Token::Semicolon) {
-					self.advance();
-				}
-				continue;
-			}
 			break;
 		}
+	
 		nodes
 	}
+
+    fn parse_block(&mut self) -> Option<ASTNode> {
+        if self.current() != Some(&Token::LBrace) {
+            return None; // Expect '{' to start a block
+        }
+        self.advance(); // Consume '{'
+
+        let mut stmts = Vec::new();
+        while self.current() != Some(&Token::RBrace) {
+            if let Some(stmt) = self.parse_stmt() {
+                stmts.push(stmt);
+            } else {
+                return None; // Invalid statement
+            }
+        }
+        self.advance(); // Consume '}'
+
+        Some(ASTNode::Block(stmts))
+    }
 }

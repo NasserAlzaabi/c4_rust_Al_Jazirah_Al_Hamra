@@ -4,7 +4,7 @@ mod vm;
 mod lexer;
 mod parser;
 
-use lexer::{Lexer, Token};
+use lexer::{Lexer};
 use parser::*;
 use vm::{Instruction, VM, generate};
 
@@ -13,14 +13,13 @@ use std::fs;
 use std::process;
 
 fn main() {
-    let args: Vec<String> = env::args().collect(); // retrieve command line args (instead of argc/argv)
+    let args: Vec<String> = env::args().collect();
 
     if args.len() < 2 {
         eprintln!("Usage: c4_rust <source_file.c>");
         process::exit(1);
     }
 
-    // Read file if accessible
     let filename = &args[1];
     let source_code = match fs::read_to_string(filename) {
         Ok(content) => content,
@@ -39,10 +38,15 @@ fn main() {
     let ast_nodes = parser.parse_program();
     println!("Parsing successful. Found {} nodes.", ast_nodes.len());
 
-    let mut instructions = generate(ast_nodes); // translates ast nodes to instructions so VM can read them
-    instructions.push(Instruction::EXIT);
+    let (mut instructions, functions) = generate(ast_nodes);
 
-    let mut vm = VM::new(instructions);
+    // if let Some(main_function) = functions.get("main") {
+    //     instructions.insert(0, Instruction::CALL(main_function.name.clone())); // Start execution from main
+    // } else {
+    //     panic!("No main function found!");
+    // }
+
+    let mut vm = VM::new(instructions, functions);
     let result = vm.run();
     println!("Instructions executed successfully with result: {}", result);
 }
