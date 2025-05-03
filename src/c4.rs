@@ -37,16 +37,24 @@ fn main() {
     let mut parser = Parser::new(tokens);
     let ast_nodes = parser.parse_program();
     println!("Parsing successful. Found {} nodes.", ast_nodes.len());
+    
+    // Print all top-level nodes for debugging
+    for (i, node) in ast_nodes.iter().enumerate() {
+        match node {
+            ASTNode::FuncDef { name, .. } => println!("Top-level node #{}: Function '{}'", i, name),
+            _ => println!("Top-level node #{}: {:?}", i, node),
+        }
+    }
 
-    let (mut instructions, functions) = generate(ast_nodes);
+    let (instructions, functions) = generate(ast_nodes);
 
-    // if let Some(main_function) = functions.get("main") {
-    //     instructions.insert(0, Instruction::CALL(main_function.name.clone())); // Start execution from main
-    // } else {
-    //     panic!("No main function found!");
-    // }
+    // Validate we have the main function before running
+    if !functions.contains_key("main") {
+        eprintln!("Error: No 'main' function defined in the source code");
+        process::exit(1);
+    }
 
     let mut vm = VM::new(instructions, functions);
     let result = vm.run();
-    println!("Instructions executed successfully with result: {}", result);
+    println!("Program executed with result: {}", result);
 }

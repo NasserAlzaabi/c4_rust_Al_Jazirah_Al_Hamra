@@ -20,6 +20,8 @@ pub enum Instruction {
     ADD, SUB, MUL, DIV, MOD,
     EXIT,
     LoadString(String),
+    DEREF,
+    ADDR(String),
 }
 
 pub struct Function {
@@ -79,6 +81,10 @@ impl VM {
             Instruction::NE => self.exec_ne(),
             Instruction::JZ(addr) => self.exec_jz(addr),
             Instruction::JMP(addr) => self.exec_jmp(addr),
+            Instruction::ENT(size) => self.exec_ent(size),
+            Instruction::ADJ(size) => self.exec_adj(size),
+            Instruction::LEV => self.exec_lev(),
+            Instruction::LEA(offset) => self.exec_lea(offset),
             Instruction::CALL(name) => self.exec_call(&name),
             Instruction::RETURN => self.exec_return(),
             Instruction::STORE(name) => self.exec_store(&name),
@@ -86,6 +92,8 @@ impl VM {
             Instruction::PRINTF(fmt, args) => self.exec_printf(&fmt, &args),
             Instruction::EXIT => self.pc = self.text.len(),
             Instruction::LoadString(String) => self.exec_load_string(String),
+            Instruction::DEREF => self.exec_deref(),
+            Instruction::ADDR(name) => self.exec_addr(&name),
             _ => panic!("Unsupported instruction: {:?}", self.text[self.pc - 1]),
         }
     }
@@ -187,11 +195,52 @@ impl VM {
         self.pc = addr;
     }
 
+    fn exec_ent(&mut self, size: usize) {
+        // Save old base pointer
+        self.stack[self.sp] = self.bp as i32;
+        self.sp += 1;
+        
+        // Set new base pointer to current stack pointer
+        self.bp = self.sp;
+        
+        // Allocate stack space for local variables
+        self.sp += size;
+        
+        println!("ENT: bp={}, sp={}, size={}", self.bp, self.sp, size);
+    }
+
+    fn exec_adj(&mut self, size: usize) {
+        // Adjust stack pointer (typically used after pushing function arguments)
+        self.sp += size;
+        println!("ADJ: sp={}, size={}", self.sp, size);
+    }
+
+    fn exec_lev(&mut self) {
+        // Leave function - restore stack pointer and base pointer
+        self.sp = self.bp;
+        
+        // Restore previous base pointer
+        self.sp -= 1;
+        self.bp = self.stack[self.sp] as usize;
+        
+        // Fetch return address
+        self.sp -= 1;
+        self.pc = self.stack[self.sp] as usize;
+        
+        println!("LEV: bp={}, sp={}, pc={}", self.bp, self.sp, self.pc);
+    }
+
+    fn exec_lea(&mut self, offset: usize) {
+        // Load effective address (local variable relative to bp)
+        self.ax = (self.bp + offset) as i32;
+        println!("LEA: bp={}, offset={}, ax={}", self.bp, offset, self.ax);
+    }
+
     fn exec_call(&mut self, name: &str) {
         if let Some(func) = self.functions.get(name) {
             println!(
-                "CALL: sp = {}, ax = {}, pc = {}, calling {}",
-                self.sp, self.ax, self.pc, name
+                "CALL: sp = {}, ax = {}, pc = {}, calling {} at address {}",
+                self.sp, self.ax, self.pc, name, func.start_addr
             );
             self.call_stack.push(self.pc); // Save the return address
             self.pc = func.start_addr; // Jump to the function
@@ -212,7 +261,8 @@ impl VM {
             }
             self.variable_stack.push(local_vars);
         } else {
-            panic!("Undefined function: {}", name);
+            panic!("Undefined function: {}. Available functions: {:?}", 
+                  name, self.functions.keys().collect::<Vec<_>>());
         }
     }  
 
@@ -280,10 +330,49 @@ impl VM {
         self.variables.insert(string.clone(), address as i32);
         self.ax = address as i32;
     }
+
+    fn exec_deref(&mut self) {
+        // Dereference a pointer - in our simplified model, this would
+        // fetch the value at the "address" stored in ax
+        let ptr = self.ax as usize;
+        if ptr < self.stack.len() {
+            self.ax = self.stack[ptr];
+        } else {
+            // For string pointers, just return the address itself
+            // This simplification works for printf("%d\n", s) which just prints the address
+        }
+    }
+
+    fn exec_addr(&mut self, name: &str) {
+        // Get the "address" of a variable (simplification)
+        for (i, scope) in self.variable_stack.iter().enumerate().rev() {
+            if scope.contains_key(name) {
+                // Create a fake address based on scope and name
+                let fake_address = ((i + 1) * 1000) + name.len() * 10;
+                self.ax = fake_address as i32;
+                return;
+            }
+        }
+        
+        // Check global variables too
+        if let Some(val) = self.variables.get(name) {
+            self.ax = *val;
+            return;
+        }
+        
+        panic!("Variable not found: {}", name);
+    }
 }
 
 pub fn generate(program: Vec<ASTNode>) -> (Vec<Instruction>, HashMap<String, Function>) {
-    //let mut instructions = vec![Instruction::CALL("main".to_string())];
+    println!("DEBUG: Processing {} top-level AST nodes", program.len());
+    for (i, node) in program.iter().enumerate() {
+        match node {
+            ASTNode::FuncDef { name, .. } => println!("DEBUG: Found function #{}: {}", i, name),
+            _ => println!("DEBUG: Found node #{}: {:?}", i, node),
+        }
+    }
+
     let mut instructions = vec![
         Instruction::CALL("main".to_string()),
         Instruction::EXIT, // ← make sure EXIT happens AFTER main returns
@@ -303,8 +392,13 @@ pub fn generate(program: Vec<ASTNode>) -> (Vec<Instruction>, HashMap<String, Fun
     // Generate function definitions after the call
     for node in func_defs {
         if let ASTNode::FuncDef { name, params, body, .. } = node {
-            let start_addr = instructions.len();
             println!("Generating function '{}':", name);
+            
+            let start_addr = instructions.len();
+            
+            // Create a new variable scope for the function
+            instructions.push(Instruction::ENT(0)); // Will update with local variable count
+            
             for stmt in &body {
                 println!("--> {:?}", stmt);
                 generate_node_with_push(&stmt, &mut instructions, false);
@@ -313,6 +407,7 @@ pub fn generate(program: Vec<ASTNode>) -> (Vec<Instruction>, HashMap<String, Fun
             // Ensure there is a return instruction
             if instructions.last() != Some(&Instruction::RETURN) {
                 instructions.push(Instruction::IMM(0)); // default return value
+                instructions.push(Instruction::PUSH);
                 instructions.push(Instruction::RETURN);
             }
 
@@ -325,18 +420,28 @@ pub fn generate(program: Vec<ASTNode>) -> (Vec<Instruction>, HashMap<String, Fun
                     start_addr,
                 },
             );
+            
+            println!("Registered function '{}' at address {}", name, start_addr);
         }
     }
+    
+    println!("Function table contains {} functions:", functions.len());
+    for (name, func) in &functions {
+        println!("  - {}: addr={}, params={:?}", name, func.start_addr, func.params);
+    }
+    
+    // Check if main exists before trying to call it
+    if !functions.contains_key("main") {
+        panic!("No 'main' function found in the program. Check your test.c file.");
+    }
+    
     println!("Generated instructions:");
     for (i, instr) in instructions.iter().enumerate() {
         println!("{:03}: {:?}", i, instr);
     }
 
-    //instructions.push(Instruction::EXIT);
     (instructions, functions)
 }
-
-
 
 fn generate_node_with_push(node: &ASTNode, instructions: &mut Vec<Instruction>, push_result: bool) {
     match node {
@@ -439,10 +544,41 @@ fn generate_node_with_push(node: &ASTNode, instructions: &mut Vec<Instruction>, 
                     }
                     _ => panic!("printf must start with a string literal"),
                 }
+            } else if name == "__block" {
+                // Handle special __block function
+                for arg in args {
+                    generate_node_with_push(arg, instructions, false);
+                }
+            } else if name == "return" {
+                // Handle return statements
+                if !args.is_empty() {
+                    generate_node_with_push(&args[0], instructions, true);
+                } else {
+                    instructions.push(Instruction::IMM(0));
+                    instructions.push(Instruction::PUSH);
+                }
+                instructions.push(Instruction::RETURN);
             } else {
+                // Regular function calls
                 for arg in args.iter().rev() {
-                    println!("ARGS ARE REVERSED!!!!!!!!\n");
-                    generate_node_with_push(arg, instructions, true);
+                    // Special handling for pointer arguments
+                    match arg {
+                        ASTNode::Id(var_name) => {
+                            // For variable arguments, we use LOAD
+                            instructions.push(Instruction::LOAD(var_name.clone()));
+                            instructions.push(Instruction::PUSH);
+                        },
+                        ASTNode::UnaryOp { op: Token::Mul, expr } => {
+                            // For dereferenced pointer arguments
+                            generate_node_with_push(expr, instructions, true);
+                            instructions.push(Instruction::DEREF);
+                            instructions.push(Instruction::PUSH);
+                        },
+                        _ => {
+                            // Default handling for other argument types
+                            generate_node_with_push(arg, instructions, true);
+                        }
+                    }
                 }
                 instructions.push(Instruction::CALL(name.clone()));
                 if push_result {
@@ -481,6 +617,10 @@ fn generate_node_with_push(node: &ASTNode, instructions: &mut Vec<Instruction>, 
         ASTNode::Decl { typename, name } => {
             // Default initialize variables
             match typename {
+                Token::Int => {
+                    instructions.push(Instruction::IMM(0)); // Default value for `int`
+                    instructions.push(Instruction::STORE(name.clone()));
+                },
                 Token::Char => {
                     instructions.push(Instruction::IMM(0)); // Default value for `char`
                     instructions.push(Instruction::STORE(name.clone()));
@@ -489,12 +629,71 @@ fn generate_node_with_push(node: &ASTNode, instructions: &mut Vec<Instruction>, 
                     instructions.push(Instruction::IMM(0)); // Default value for `char*` (null pointer)
                     instructions.push(Instruction::STORE(name.clone()));
                 }
-                _ => panic!("Unsupported type in declaration"),
+                _ => panic!("Unsupported type in declaration: {:?}", typename),
             }
-        }
+        },
         ASTNode::Block(statements) => {
             for stmt in statements {
                 generate_node_with_push(stmt, instructions, false);
+            }
+        },
+        ASTNode::UnaryOp { op, expr } => {
+            match op {
+                Token::Mul => {
+                    // Handle pointer dereference
+                    generate_node_with_push(expr, instructions, true);
+                    instructions.push(Instruction::DEREF);
+                    if push_result {
+                        instructions.push(Instruction::PUSH);
+                    }
+                },
+                Token::And => {
+                    // Handle address-of operator
+                    if let ASTNode::Id(name) = &**expr {
+                        instructions.push(Instruction::ADDR(name.clone()));
+                        if push_result {
+                            instructions.push(Instruction::PUSH);
+                        }
+                    } else {
+                        panic!("Address-of operator can only be applied to variables");
+                    }
+                },
+                Token::Not => {
+                    // Handle logical NOT
+                    generate_node_with_push(expr, instructions, true);
+                    instructions.push(Instruction::IMM(0));
+                    instructions.push(Instruction::PUSH);
+                    instructions.push(Instruction::EQ);
+                    if push_result {
+                        instructions.push(Instruction::PUSH);
+                    }
+                },
+                // Handle other unary operators
+                Token::Inc => {
+                    if let ASTNode::Id(name) = &**expr {
+                        instructions.push(Instruction::LOAD(name.clone()));
+                        instructions.push(Instruction::PUSH);
+                        instructions.push(Instruction::IMM(1));
+                        instructions.push(Instruction::PUSH);
+                        instructions.push(Instruction::ADD);
+                        instructions.push(Instruction::STORE(name.clone()));
+                    } else {
+                        panic!("Increment operator must be applied to a variable");
+                    }
+                },
+                Token::Dec => {
+                    if let ASTNode::Id(name) = &**expr {
+                        instructions.push(Instruction::LOAD(name.clone()));
+                        instructions.push(Instruction::PUSH);
+                        instructions.push(Instruction::IMM(1));
+                        instructions.push(Instruction::PUSH);
+                        instructions.push(Instruction::SUB);
+                        instructions.push(Instruction::STORE(name.clone()));
+                    } else {
+                        panic!("Decrement operator must be applied to a variable");
+                    }
+                },
+                _ => panic!("Unsupported unary operator {:?}", op),
             }
         },
         _ => panic!("Unsupported AST node {:?}", node),
