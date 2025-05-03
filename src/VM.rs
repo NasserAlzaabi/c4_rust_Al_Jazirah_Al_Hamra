@@ -354,7 +354,7 @@ fn generate_node_with_push(node: &ASTNode, instructions: &mut Vec<Instruction>, 
                 instructions.push(Instruction::PUSH);
             }
         }
-        ASTNode::Str(message) => {
+        ASTNode::Str(_message) => {
             if push_result {
                 panic!("Unexpected string literal used as an expression");
             }
@@ -445,20 +445,36 @@ fn generate_node_with_push(node: &ASTNode, instructions: &mut Vec<Instruction>, 
         ASTNode::Return(expr) => {
             generate_node_with_push(expr, instructions, true); // Generate code for the return value
             instructions.push(Instruction::RETURN); // Emit the RETURN instruction
+        }
+        ASTNode::WhileLoop { condition, body } => {
+            let loop_start = instructions.len();
+
+            generate_node_with_push(condition, instructions, false); // Evaluate condition
+            instructions.push(Instruction::JZ(0)); // Jump to after loop if false
+            let jz_index = instructions.len() - 1;
+
+            for stmt in body.iter() {
+                generate_node_with_push(stmt, instructions, false);
+            }
+
+            instructions.push(Instruction::JMP(loop_start)); // Jump back to start
+            let loop_end = instructions.len();
+
+            // Patch JZ with loop_end
+            if let Instruction::JZ(ref mut target) = instructions[jz_index] {
+                *target = loop_end;
+            }
         }        
-        // ASTNode::FuncDef { name, body, .. } => {
-        //     let start_addr = instructions.len();
-        
-        //     for stmt in body {
-        //         generate_node_with_push(stmt, instructions, false);
+        // ASTNode::FuncCall { name, args } if name == "__block" => {
+        //     for arg in args {
+        //         generate_node_with_push(arg, instructions, false);
         //     }
-        
-        //     // Push default return value if no explicit return exists
-        //     if instructions.last() != Some(&Instruction::RETURN) {
-        //         instructions.push(Instruction::IMM(0));
-        //         instructions.push(Instruction::RETURN);
-        //     }
-        // }
+        // },
+        ASTNode::Block(statements) => {
+            for stmt in statements {
+                generate_node_with_push(stmt, instructions, false);
+            }
+        },
         _ => panic!("Unsupported AST node {:?}", node),
     }
 }
