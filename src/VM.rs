@@ -219,18 +219,14 @@ impl VM {
             "RETURN: sp = {}, ax = {}, call_stack = {:?}",
             self.sp, self.ax, self.call_stack
         );
-    
+        
+        self.variable_stack.pop();
+
         if let Some(return_addr) = self.call_stack.pop() {
-            // if self.sp == 0 {
-            //     self.ax = 0; // Default return value
-            // } else {
-            //     self.ax = self.stack[self.sp - 1]; // Pop return value into ax
-            //     self.sp -= 1; // Adjust stack pointer
-            // }
             if self.sp > 0 {
                 self.sp -= 1;
                 self.ax = self.stack[self.sp];
-            }            
+            }
             self.pc = return_addr; // Restore the program counter
         } else {
             // Terminate if the call stack is empty (main is returning)
@@ -261,14 +257,7 @@ impl VM {
         println!("Executing PRINTF: fmt = {:?}, args = {:?}", fmt, args);
         println!("VM variables: {:?}", self.variables);
         let mut output = fmt.clone();
-    
-        // for var in args {
-        //     if let Some(val) = self.variables.get(var) {
-        //         output = output.replacen("%d", &val.to_string(), 1);
-        //     } else {
-        //         panic!("Undefined variable: {}", var);
-        //     }
-        // }
+
         for _ in args {
             if self.sp == 0 {
                 panic!("Not enough values on the stack for printf");
@@ -414,14 +403,7 @@ fn generate_node_with_push(node: &ASTNode, instructions: &mut Vec<Instruction>, 
                 match &args[0] {
                     ASTNode::Str(message) => {
                         let mut fmt_args = Vec::new();
-                        // for arg in &args[1..] {
-                        //     if let ASTNode::Id(var_name) = arg {
-                        //         fmt_args.push(var_name.clone());
-                        //     } else {
-                        //         panic!("Only variable identifiers allowed as printf arguments");
-                        //     }
-                        // }
-                        for (i, arg) in args.iter().enumerate().skip(1) {
+                        for (i, arg) in args.iter().enumerate().skip(1).rev() {
                             let arg_name = format!("__printf_arg_{}", i);
                             generate_node_with_push(arg, instructions, true);
                             // Store in a pseudo-variable slot (not actually used by VM logic — it's symbolic)
@@ -433,7 +415,8 @@ fn generate_node_with_push(node: &ASTNode, instructions: &mut Vec<Instruction>, 
                     _ => panic!("printf must start with a string literal"),
                 }
             } else {
-                for arg in args {
+                for arg in args.iter().rev() {
+                    println!("ARGS ARE REVERSED!!!!!!!!\n");
                     generate_node_with_push(arg, instructions, true);
                 }
                 instructions.push(Instruction::CALL(name.clone()));
@@ -470,6 +453,11 @@ fn generate_node_with_push(node: &ASTNode, instructions: &mut Vec<Instruction>, 
         //         generate_node_with_push(arg, instructions, false);
         //     }
         // },
+        ASTNode::Decl { name, .. } => {
+            // Default initialize the variable to 0
+            instructions.push(Instruction::IMM(0));
+            instructions.push(Instruction::STORE(name.clone()));
+        }
         ASTNode::Block(statements) => {
             for stmt in statements {
                 generate_node_with_push(stmt, instructions, false);
