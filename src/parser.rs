@@ -394,143 +394,68 @@ impl Parser {
 	    }
 	}	
 
-	// pub fn parse_decl(&mut self) -> Option<ASTNode> {
-	// 	let typename = match self.current()? {
-	// 		Token::Int | Token::Char | Token::Float | Token::Double |
-	// 		Token::Void | Token::Short | Token::Long => self.current()?.clone(),
-	// 		_ => return None,
-	// 	};
-		
-	// 	if let Some(Token::Id(_)) = self.tokens.get(self.pos + 1) {
-	// 		if self.tokens.get(self.pos + 2) == Some(&Token::LParen) {
-	// 			return None; // it's a function declaration, not variable decl
-	// 		}
-	// 	}
-		
-
-	// 	// if self.pos == 0 {
-	// 	// 	if let Some(Token::Id(_)) = self.tokens.get(self.pos + 1) {
-	// 	// 		if self.tokens.get(self.pos + 2) == Some(&Token::LParen) {
-	// 	// 			return None;
-	// 	// 		}
-	// 	// 	}
-	// 	// }
-	
-	// 	// self.advance(); // move past typename
-	// 	// let name = match self.current()? {
-	// 	// 	Token::Id(n) => n.clone(),
-	// 	// 	_ => return None,
-	// 	// };
-	// 	// self.advance();
-	
-	// 	// if self.current() == Some(&Token::Assign) {
-	// 	// 	self.advance();
-	// 	// 	let value = self.parse_expr()?;
-	// 	// 	return Some(ASTNode::DeclAssign {
-	// 	// 		typename,
-	// 	// 		name,
-	// 	// 		value: Box::new(value),
-	// 	// 	});
-	// 	// }
-	
-	// 	// Some(ASTNode::Decl { typename, name })
-	// 	self.advance(); // consume type
-	// 	let mut decls = Vec::new();
-	
-	// 	loop {
-	// 		let name = match self.current()? {
-	// 			Token::Id(n) => n.clone(),
-	// 			_ => return None,
-	// 		};
-	// 		self.advance();
-	
-	// 		if self.current() == Some(&Token::Assign) {
-	// 			self.advance();
-	// 			let value = self.parse_expr()?;
-	// 			decls.push(ASTNode::DeclAssign {
-	// 				typename: typename.clone(),
-	// 				name,
-	// 				value: Box::new(value),
-	// 			});
-	// 		} else {
-	// 			decls.push(ASTNode::Decl {
-	// 				typename: typename.clone(),
-	// 				name,
-	// 			});
-	// 		}
-	
-	// 		match self.current() {
-	// 			Some(Token::Comma) => {
-	// 				self.advance();
-	// 			}
-	// 			Some(Token::Semicolon) => {
-	// 				self.advance();
-	// 				break;
-	// 			}
-	// 			_ => break,
-	// 		}
-	// 	}
-	
-	// 	//Some(decls.remove(0))
-	// 	Some(ASTNode::Block(decls))
-	// }
-
 	pub fn parse_decl(&mut self) -> Option<ASTNode> {
-		println!("parse_decl START: token = {:?}", self.current());
-		let typename = match self.current() {
-			Some(Token::Int | Token::Char | Token::Float | Token::Double |
-			Token::Void | Token::Short | Token::Long) => self.current().unwrap().clone(),
-			_ => return None,
-		};
-		self.advance(); // consume type
-		println!("After first self.advance");
-	
-		let mut decls = Vec::new();
-	
-		loop {
-			println!("Current token before name: {:?}", self.current());
-			let name = match self.current()? {
-				Token::Id(n) => n.clone(),
-				_ => break,
-			};
-			self.advance();
-	
-			if self.current() == Some(&Token::Assign) {
-				self.advance();
-				let value = self.parse_expr()?;
-				println!("Parsed decl: {:?}", decls.last());
-				decls.push(ASTNode::DeclAssign {
-					typename: typename.clone(),
-					name,
-					value: Box::new(value),
-				});
-			} else {
-				println!("Parsed decl: {:?}", decls.last());
-				decls.push(ASTNode::Decl {
-					typename: typename.clone(),
-					name,
-				});
-			}
+	    let typename = match self.current()? {
+	        Token::Int | Token::Char => self.current()?.clone(),
+	        _ => return None,
+	    };
 
-			println!("End of loop, current = {:?}", self.current());
-			match self.current() {
-				
-				Some(Token::Comma) => {
-					self.advance(); // continue parsing
-				}
-				Some(Token::Semicolon) => {
-					self.advance(); // done
-					break;
-				}
-				_ => return None,
-			}
-		}
-	
-		if decls.len() == 1 {
-			Some(decls.remove(0))
-		} else {
-			Some(ASTNode::Block(decls))
-		}
+	    self.advance(); // Move past the type (e.g., `char`)
+
+	    // Check for pointer (`*`)
+	    let is_pointer = if self.current() == Some(&Token::Mul) {
+	        self.advance(); // Consume `*`
+	        true
+	    } else {
+	        false
+	    };
+
+	    let mut decls = Vec::new();
+
+	    loop {
+	        let name = match self.current()? {
+	            Token::Id(n) => n.clone(),
+	            _ => return None,
+	        };
+	        self.advance(); // Consume the identifier
+
+	        // Check for assignment
+	        if self.current() == Some(&Token::Assign) {
+	            self.advance(); // Consume `=`
+	            let value = self.parse_expr()?;
+	            decls.push(ASTNode::DeclAssign {
+	                typename: if is_pointer {
+	                    Token::CharPointer // Use a custom token for `char*`
+	                } else {
+	                    typename.clone()
+	                },
+	                name,
+	                value: Box::new(value),
+	            });
+	        } else {
+	            // Variable declaration without assignment
+	            decls.push(ASTNode::Decl {
+	                typename: if is_pointer {
+	                    Token::CharPointer
+	                } else {
+	                    typename.clone()
+	                },
+	                name,
+	            });
+	        }
+
+	        // Check for comma or semicolon
+	        match self.current() {
+	            Some(Token::Comma) => self.advance(), // Continue to the next declaration
+	            Some(Token::Semicolon) => {
+	                self.advance(); // End of declaration
+	                break;
+	            }
+	            _ => return None,
+	        }
+	    }
+
+	    Some(ASTNode::Block(decls))
 	}
 	
 	pub fn parse_func_def(&mut self) -> Option<ASTNode> {	

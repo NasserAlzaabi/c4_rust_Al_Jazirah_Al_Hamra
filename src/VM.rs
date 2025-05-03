@@ -19,6 +19,7 @@ pub enum Instruction {
     OR, XOR, AND, EQ, NE, LT, LE, GT, GE, SHL, SHR,
     ADD, SUB, MUL, DIV, MOD,
     EXIT,
+    LoadString(String),
 }
 
 pub struct Function {
@@ -84,6 +85,7 @@ impl VM {
             Instruction::LOAD(name) => self.exec_load(name),
             Instruction::PRINTF(fmt, args) => self.exec_printf(&fmt, &args),
             Instruction::EXIT => self.pc = self.text.len(),
+            Instruction::LoadString(String) => self.exec_load_string(String),
             _ => panic!("Unsupported instruction: {:?}", self.text[self.pc - 1]),
         }
     }
@@ -271,6 +273,13 @@ impl VM {
         }
         println!("{}", output);
     }    
+
+    fn exec_load_string(&mut self, string: String) {
+        // Simulate storing the string in memory and returning its address
+        let address = self.stack.len(); // Use the stack length as a fake address
+        self.variables.insert(string.clone(), address as i32);
+        self.ax = address as i32;
+    }
 }
 
 pub fn generate(program: Vec<ASTNode>) -> (Vec<Instruction>, HashMap<String, Function>) {
@@ -348,9 +357,25 @@ fn generate_node_with_push(node: &ASTNode, instructions: &mut Vec<Instruction>, 
                 panic!("Unexpected string literal used as an expression");
             }
         }
-        ASTNode::DeclAssign { name, value, .. } => {
-            generate_node_with_push(value, instructions, true);
-            instructions.push(Instruction::STORE(name.clone()));
+        ASTNode::DeclAssign { typename, name, value } => {
+            match typename {
+                Token::Char => {
+                    generate_node_with_push(value, instructions, true);
+                    instructions.push(Instruction::STORE(name.clone()));
+                }
+                Token::CharPointer => {
+                    if let ASTNode::Str(string) = &**value {
+                        instructions.push(Instruction::LoadString(string.clone()));
+                        instructions.push(Instruction::STORE(name.clone()));
+                    } else {
+                        panic!("Invalid value for char*");
+                    }
+                }
+                _ => {
+                    generate_node_with_push(value, instructions, true);
+                    instructions.push(Instruction::STORE(name.clone()));
+                }
+            }
         }
         ASTNode::Assign { name, value } => {
             generate_node_with_push(value, instructions, true);
@@ -453,10 +478,19 @@ fn generate_node_with_push(node: &ASTNode, instructions: &mut Vec<Instruction>, 
         //         generate_node_with_push(arg, instructions, false);
         //     }
         // },
-        ASTNode::Decl { name, .. } => {
-            // Default initialize the variable to 0
-            instructions.push(Instruction::IMM(0));
-            instructions.push(Instruction::STORE(name.clone()));
+        ASTNode::Decl { typename, name } => {
+            // Default initialize variables
+            match typename {
+                Token::Char => {
+                    instructions.push(Instruction::IMM(0)); // Default value for `char`
+                    instructions.push(Instruction::STORE(name.clone()));
+                }
+                Token::CharPointer => {
+                    instructions.push(Instruction::IMM(0)); // Default value for `char*` (null pointer)
+                    instructions.push(Instruction::STORE(name.clone()));
+                }
+                _ => panic!("Unsupported type in declaration"),
+            }
         }
         ASTNode::Block(statements) => {
             for stmt in statements {

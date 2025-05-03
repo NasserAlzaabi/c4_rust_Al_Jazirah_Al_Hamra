@@ -21,7 +21,9 @@ pub enum Token {
 	Str(String), //String literals
 
 	//Keywords
-	Char, Else, Enum, If, Int, Return, Sizeof, While,
+	Char, 
+	CharPointer,
+	Else, Enum, If, Int, Return, Sizeof, While,
 	Void, Float, Double, Short, Long,
 
 	//Operators
