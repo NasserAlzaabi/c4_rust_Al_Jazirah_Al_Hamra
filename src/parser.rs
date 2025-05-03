@@ -101,11 +101,17 @@ pub struct Parser {
 	tokens: Vec<Token>,
 	pos: usize,
 	current_token: Token,
+	pending_decls: Vec<ASTNode>,
 }
 
 impl Parser {
 	pub fn new(tokens: Vec<Token>) -> Self {
-		Parser { tokens, pos: 0, current_token: Token::EOF }
+		Parser {
+			tokens,
+			pos: 0,
+			current_token: Token::EOF,
+			pending_decls: Vec::new(),
+		}
 	}
 
 	fn current(&self) -> Option<&Token> {
@@ -251,6 +257,10 @@ impl Parser {
 	}
 
 	pub fn parse_stmt(&mut self) -> Option<ASTNode> {
+		println!("parse_stmt: token = {:?}", self.current());
+		if let Some(decl) = self.pending_decls.pop() {
+			return Some(decl);
+		}
 		if self.current() == Some(&Token::LBrace) {
 			self.advance(); // consume '{'
 			let mut body = Vec::new();
@@ -261,12 +271,28 @@ impl Parser {
 					continue;
 				}
 	
+				// if let Some(stmt) = self.parse_if()
+				// 	.or_else(|| self.parse_while())
+				// 	.or_else(|| self.parse_decl())
+				// 	.or_else(|| self.parse_expr())
+				// {
+				// 	body.push(stmt);
 				if let Some(stmt) = self.parse_if()
-					.or_else(|| self.parse_while())
-					.or_else(|| self.parse_decl())
-					.or_else(|| self.parse_expr())
+				.or_else(|| self.parse_while())
+				.or_else(|| self.parse_decl())
+				.or_else(|| self.parse_expr())
 				{
-					body.push(stmt);
+					match stmt {
+						ASTNode::Block(stmts) => {
+							self.pending_decls.extend(stmts.into_iter().rev()); // store remaining
+							if let Some(first) = self.pending_decls.pop() {
+								body.push(first);
+							}
+						}
+						_ => {
+							body.push(stmt);
+						}
+					}
 					if self.current() == Some(&Token::Semicolon) {
 						self.advance();
 					}
@@ -286,6 +312,13 @@ impl Parser {
 			})
 		} else if self.current() == Some(&Token::Return) {
 			self.advance(); // consume 'return'
+			
+			// Handle return with no expression (void functions)
+			if self.current() == Some(&Token::Semicolon) {
+				self.advance(); // Consume ';'
+				return Some(ASTNode::Return(Box::new(ASTNode::Num(0)))); // Return 0 as default
+			}
+			
 			let expr = self.parse_expr()?; // Parse the return expression
 			if self.current() == Some(&Token::Semicolon) {
 				self.advance(); // Consume ';'
@@ -369,38 +402,67 @@ impl Parser {
 	}	
 
 	pub fn parse_decl(&mut self) -> Option<ASTNode> {
-		let typename = match self.current()? {
-			Token::Int | Token::Char | Token::Float | Token::Double |
-			Token::Void | Token::Short | Token::Long => self.current()?.clone(),
-			_ => return None,
-		};
+	    let typename = match self.current()? {
+	        Token::Int | Token::Char => self.current()?.clone(),
+	        _ => return None,
+	    };
 
-		if self.pos == 0 {
-			if let Some(Token::Id(_)) = self.tokens.get(self.pos + 1) {
-				if self.tokens.get(self.pos + 2) == Some(&Token::LParen) {
-					return None;
-				}
-			}
-		}
-	
-		self.advance(); // move past typename
-		let name = match self.current()? {
-			Token::Id(n) => n.clone(),
-			_ => return None,
-		};
-		self.advance();
-	
-		if self.current() == Some(&Token::Assign) {
-			self.advance();
-			let value = self.parse_expr()?;
-			return Some(ASTNode::DeclAssign {
-				typename,
-				name,
-				value: Box::new(value),
-			});
-		}
-	
-		Some(ASTNode::Decl { typename, name })
+	    self.advance(); // Move past the type (e.g., `char`)
+
+	    // Check for pointer (`*`)
+	    let is_pointer = if self.current() == Some(&Token::Mul) {
+	        self.advance(); // Consume `*`
+	        true
+	    } else {
+	        false
+	    };
+
+	    let mut decls = Vec::new();
+
+	    loop {
+	        let name = match self.current()? {
+	            Token::Id(n) => n.clone(),
+	            _ => return None,
+	        };
+	        self.advance(); // Consume the identifier
+
+	        // Check for assignment
+	        if self.current() == Some(&Token::Assign) {
+	            self.advance(); // Consume `=`
+	            let value = self.parse_expr()?;
+	            decls.push(ASTNode::DeclAssign {
+	                typename: if is_pointer {
+	                    Token::CharPointer // Use a custom token for `char*`
+	                } else {
+	                    typename.clone()
+	                },
+	                name,
+	                value: Box::new(value),
+	            });
+	        } else {
+	            // Variable declaration without assignment
+	            decls.push(ASTNode::Decl {
+	                typename: if is_pointer {
+	                    Token::CharPointer
+	                } else {
+	                    typename.clone()
+	                },
+	                name,
+	            });
+	        }
+
+	        // Check for comma or semicolon
+	        match self.current() {
+	            Some(Token::Comma) => self.advance(), // Continue to the next declaration
+	            Some(Token::Semicolon) => {
+	                self.advance(); // End of declaration
+	                break;
+	            }
+	            _ => return None,
+	        }
+	    }
+
+	    Some(ASTNode::Block(decls))
 	}
 	
 	pub fn parse_func_def(&mut self) -> Option<ASTNode> {	
@@ -425,7 +487,7 @@ impl Parser {
 		let mut params = Vec::new();
 	
 		while self.current() != Some(&Token::RParen) {
-	
+			// Get parameter type
 			let param_type = match self.current()? {
 				Token::Int | Token::Char | Token::Float | Token::Double |
 				Token::Void | Token::Short | Token::Long => self.current()?.clone(),
@@ -434,7 +496,15 @@ impl Parser {
 				}
 			};
 			self.advance();
+			
+			// Check for pointer (*) after type
+			let mut is_pointer = false;
+			if self.current() == Some(&Token::Mul) {
+				is_pointer = true;
+				self.advance();
+			}
 	
+			// Get parameter name
 			let param_name = match self.current()? {
 				Token::Id(name) => name.clone(),
 				_ => {
@@ -442,8 +512,19 @@ impl Parser {
 				}
 			};
 			self.advance();
-	
-			params.push((param_type, param_name));
+			
+			// Store the appropriate type (original or pointer version)
+			if is_pointer {
+				// Use CharPointer for char* parameters
+				if param_type == Token::Char {
+					params.push((Token::CharPointer, param_name));
+				} else {
+					// For other pointer types (not fully implemented yet)
+					params.push((param_type, param_name));
+				}
+			} else {
+				params.push((param_type, param_name));
+			}
 	
 			if self.current() == Some(&Token::Comma) {
 				self.advance();
@@ -470,18 +551,33 @@ impl Parser {
 			}
 	
 			let snapshot = self.pos;
-			if let Some(stmt) = self.parse_if()
-			.or_else(|| self.parse_decl())
-			.or_else(|| self.parse_expr())
-			.or_else(|| self.parse_stmt())
-			{		
-				body.push(stmt);
-				if self.current() == Some(&Token::Semicolon) {
-					self.advance();
+			
+			// Try to parse a statement - wrap in a match to handle failures gracefully
+			match self.parse_if()
+				.or_else(|| self.parse_decl())
+				.or_else(|| self.parse_expr())
+				.or_else(|| self.parse_stmt()) {
+				Some(stmt) => {
+					body.push(stmt);
+					if self.current() == Some(&Token::Semicolon) {
+						self.advance();
+					}
+				},
+				None => {
+					// In case of failure, try to skip to the next statement
+					println!("Warning: Failed to parse statement at position {}, skipping.", snapshot);
+					self.pos = snapshot;
+					
+					// Skip until semicolon or right brace to recover
+					while self.current() != Some(&Token::Semicolon) && 
+						  self.current() != Some(&Token::RBrace) && 
+						  self.current() != Some(&Token::EOF) {
+						self.advance();
+					}
+					if self.current() == Some(&Token::Semicolon) {
+						self.advance(); // Skip the semicolon
+					}
 				}
-			} else {
-				self.pos = snapshot;
-				break;
 			}
 		}
 	
@@ -497,7 +593,6 @@ impl Parser {
 			body,
 		})
 	}
-	
 	
 	pub fn parse_expr(&mut self) -> Option<ASTNode> {
 		let node = self.parse_binary(0)?;
@@ -547,7 +642,8 @@ impl Parser {
 			let snapshot = self.pos;
 	
 			// Try function definition first
-			if let Some(func_def) = self.parse_func_def() {
+			let result = self.parse_func_def();
+			if let Some(func_def) = result {
 				nodes.push(func_def);
 				continue;
 			}

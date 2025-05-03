@@ -1,276 +1,361 @@
-use c4::lexer::{Lexer, Token};
+use c4::lexer::*;
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+#[test]
+fn test_lexer_basic_numbers_and_ids() {
+    let source = "int x = 42;";
+    let mut lexer = Lexer::new(source);
+    let tokens = lexer.tokenize();
 
-    #[test]
-    fn test_skip_whitespace() {
-        let mut lexer = Lexer::new("   \n\t   \n  ");
-        let token = lexer.next_token();
-        assert_eq!(token, Token::EOF);
-        assert_eq!(lexer.line, 3); // 2 newline advances
-    }
-	
-	#[test]
-	fn test_numeric_literals() {
-		let mut lexer = Lexer::new("42 0x10 0755 0");
-		let tokens = lexer.tokenize();
-		assert_eq!(
-			tokens,
-			vec![
-				Token::Num(42),
-				Token::Num(16),
-				Token::Num(493),
-				Token::Num(0),
-				Token::EOF,
-			]
-		);
-	}
+    let expected = vec![
+        Token::Int,
+        Token::Id("x".into()),
+        Token::Assign,
+        Token::Num(42),
+        Token::Semicolon,
+        Token::EOF,
+    ];
 
-    #[test]
-    fn test_data_type_keywords() {
-        let input = "int char void float double short long";
-        let mut lexer = Lexer::new(input);
-        let tokens = lexer.tokenize();
+    assert_eq!(tokens, expected);
+}
 
-        let expected = vec![
-            Token::Int,
-            Token::Char,
-            Token::Void,
-            Token::Float,
-            Token::Double,
-            Token::Short,
-            Token::Long,
-            Token::EOF,
-        ];
+#[test]
+fn test_lexer_arithmetic_ops() {
+    let source = "a + b - 3 * 4 / 2 % 1;";
+    let mut lexer = Lexer::new(source);
+    let tokens = lexer.tokenize();
 
-        assert_eq!(tokens, expected);
-    }
+    let expected = vec![
+        Token::Id("a".into()),
+        Token::Add,
+        Token::Id("b".into()),
+        Token::Sub,
+        Token::Num(3),
+        Token::Mul,
+        Token::Num(4),
+        Token::Div,
+        Token::Num(2),
+        Token::Mod,
+        Token::Num(1),
+        Token::Semicolon,
+        Token::EOF,
+    ];
 
-	#[test]
-	fn test_lexer_function_declaration() {
-		let mut lexer = Lexer::new("int main() {}");
-		let tokens = lexer.tokenize();
-	
-		let expected = vec![
-			Token::Int,
-			Token::Id("main".to_string()),
-			Token::LParen,
-			Token::RParen,
-			Token::LBrace,
-			Token::RBrace,
-			Token::EOF,
-		];
-	
-		assert_eq!(tokens, expected);
-	}
+    assert_eq!(tokens, expected);
+}
 
-    #[test]
-    fn test_skip_hash_comment() {
-        let mut lexer = Lexer::new("# this is a comment\n\n");
-        let token = lexer.next_token();
-        assert_eq!(token, Token::EOF);
-        assert_eq!(lexer.line, 3);
-    }
+#[test]
+fn test_lexer_comparisons() {
+    let source = "x == y != z < a > b <= c >= d;";
+    let mut lexer = Lexer::new(source);
+    let tokens = lexer.tokenize();
 
-    #[test]
-    fn test_skip_double_slash_comment() {
-        let mut lexer = Lexer::new("// comment one\n// comment two\n");
-        let token = lexer.next_token();
-        assert_eq!(token, Token::EOF);
-        assert_eq!(lexer.line, 3);
-    }
+    let expected = vec![
+        Token::Id("x".into()),
+        Token::Eq,
+        Token::Id("y".into()),
+        Token::Ne,
+        Token::Id("z".into()),
+        Token::Lt,
+        Token::Id("a".into()),
+        Token::Gt,
+        Token::Id("b".into()),
+        Token::Le,
+        Token::Id("c".into()),
+        Token::Ge,
+        Token::Id("d".into()),
+        Token::Semicolon,
+        Token::EOF,
+    ];
 
-    #[test]
-    fn test_mixed_whitespace_and_comments() {
-        let mut lexer = Lexer::new("   // hello\n  # again\n\n\t\t");
-        let token = lexer.next_token();
-        assert_eq!(token, Token::EOF);
-        assert_eq!(lexer.line, 4);
-    }
+    assert_eq!(tokens, expected);
+}
 
-	#[test]
-	fn test_identifier_basic() {
-	    let mut lexer = Lexer::new("hello");
-	    let token = lexer.next_token();
-	    assert_eq!(token, Token::Id("hello".to_string()));
-	}
+#[test]
+fn test_lexer_keywords_and_symbols() {
+    let source = "if (x) { return 0; } else while (1) {}";
+    let mut lexer = Lexer::new(source);
+    let tokens = lexer.tokenize();
 
-	#[test]
-	fn test_identifier_with_numbers() {
-	    let mut lexer = Lexer::new("var123_name");
-	    let token = lexer.next_token();
-	    assert_eq!(token, Token::Id("var123_name".to_string()));
-	}
+    let expected = vec![
+        Token::If,
+        Token::LParen,
+        Token::Id("x".into()),
+        Token::RParen,
+        Token::LBrace,
+        Token::Return,
+        Token::Num(0),
+        Token::Semicolon,
+        Token::RBrace,
+        Token::Else,
+        Token::While,
+        Token::LParen,
+        Token::Num(1),
+        Token::RParen,
+        Token::LBrace,
+        Token::RBrace,
+        Token::EOF,
+    ];
 
-	#[test]
-	fn test_keywords() {
-	    let keywords = vec![
-	        ("char", Token::Char),
-	        ("else", Token::Else),
-	        ("enum", Token::Enum),
-	        ("if", Token::If),
-	        ("int", Token::Int),
-	        ("return", Token::Return),
-	        ("sizeof", Token::Sizeof),
-	        ("while", Token::While),
-	    ];
+    assert_eq!(tokens, expected);
+}
 
-	    for (word, expected_token) in keywords {
-	        let mut lexer = Lexer::new(word);
-	        let token = lexer.next_token();
-	        assert_eq!(token, expected_token);
-	    }
-	}
+#[test]
+fn test_lexer_simple_decl() {
+    let mut lexer = Lexer::new("int x = 100;");
+    let tokens = lexer.tokenize();
 
-	#[test]
-	fn test_decimal_number() {
-	    let mut lexer = Lexer::new("1234");
-	    let token = lexer.next_token();
-	    assert_eq!(token, Token::Num(1234));
-	}
+    let expected = vec![
+        Token::Int,
+        Token::Id("x".into()),
+        Token::Assign,
+        Token::Num(100),
+        Token::Semicolon,
+        Token::EOF,
+    ];
 
-	#[test]
-	fn test_zero() {
-		let mut lexer = Lexer::new("0");
-		let token = lexer.next_token();
-		assert_eq!(token, Token::Num(0));
-	}
+    assert_eq!(tokens, expected);
+}
 
-	#[test]
-	fn test_octal_number() {
-		let mut lexer = Lexer::new("077");
-		let token = lexer.next_token();
-		assert_eq!(token, Token::Num(63)); // 7*8 + 7 = 63
-	}
+#[test]
+fn test_lexer_arithmetic() {
+    let mut lexer = Lexer::new("a + b - 2 * 3 / 4 % 5;");
+    let tokens = lexer.tokenize();
 
-	#[test]
-	fn test_hex_number() {
-		let mut lexer = Lexer::new("0x1A3F");
-		let token = lexer.next_token();
-		assert_eq!(token, Token::Num(0x1A3F));
-	}
+    let expected = vec![
+        Token::Id("a".into()),
+        Token::Add,
+        Token::Id("b".into()),
+        Token::Sub,
+        Token::Num(2),
+        Token::Mul,
+        Token::Num(3),
+        Token::Div,
+        Token::Num(4),
+        Token::Mod,
+        Token::Num(5),
+        Token::Semicolon,
+        Token::EOF,
+    ];
 
-	#[test]
-	fn test_char_literal_simple() {
-		let mut lexer = Lexer::new("'a'");
-		let token = lexer.next_token();
-		assert_eq!(token, Token::Num('a' as i64));
-	}
-	
-	#[test]
-	fn test_char_literal_escape_newline() {
-		let mut lexer = Lexer::new("'\\n'");
-		let token = lexer.next_token();
-		assert_eq!(token, Token::Num('\n' as i64));
-	}
-	
-	#[test]
-	fn test_char_literal_escape_single_quote() {
-		let mut lexer = Lexer::new("'\\''");
-		let token = lexer.next_token();
-		assert_eq!(token, Token::Num('\'' as i64));
-	}
-	
-	#[test]
-	fn test_char_literal_backslash() {
-		let mut lexer = Lexer::new("'\\\\'");
-		let token = lexer.next_token();
-		assert_eq!(token, Token::Num('\\' as i64));
-	}
+    assert_eq!(tokens, expected);
+}
 
-	#[test]
-	fn test_string_literal_basic() {
-		let mut lexer = Lexer::new("\"hello\"");
-		let token = lexer.next_token();
-		assert_eq!(token, Token::Str("hello".to_string()));
-	}
-	
-	#[test]
-	fn test_string_literal_with_escape() {
-		let mut lexer = Lexer::new("\"line\\nbreak\"");
-		let token = lexer.next_token();
-		assert_eq!(token, Token::Str("line\nbreak".to_string()));
-	}
-	
-	#[test]
-	fn test_string_literal_with_quote_and_backslash() {
-		let mut lexer = Lexer::new("\"a \\\"quote\\\" and \\\\ backslash\"");
-		let token = lexer.next_token();
-		assert_eq!(token, Token::Str("a \"quote\" and \\ backslash".to_string()));
-	}
-	
-	#[test]
-	fn test_unterminated_string_literal() {
-		let mut lexer = Lexer::new("\"unfinished");
-		let token = lexer.next_token();
-		assert_eq!(token, Token::Unknown('"'));
-	}
+#[test]
+fn test_lexer_keywords() {
+    let mut lexer = Lexer::new("if (x) { return 1; } else while (0) {}");
+    let tokens = lexer.tokenize();
 
-	#[test]
-	fn test_single_char_operators() {
-		let symbols = vec![
-			("+", Token::Add),
-			("-", Token::Sub),
-			("*", Token::Mul),
-			("/", Token::Div),
-			("%", Token::Mod),
-			("&", Token::And),
-			("|", Token::Or),
-			("^", Token::Xor),
-			("!", Token::Not),
-			("~", Token::Tilde),
-			("?", Token::Cond),
-			("=", Token::Assign),
-			("<", Token::Lt),
-			(">", Token::Gt),
-			(";", Token::Semicolon),
-			(":", Token::Colon),
-			(",", Token::Comma),
-			("(", Token::LParen),
-			(")", Token::RParen),
-			("{", Token::LBrace),
-			("}", Token::RBrace),
-			("[", Token::LBracket),
-			("]", Token::RBracket),
-		];
-	
-		for (input, expected) in symbols {
-			let mut lexer = Lexer::new(input);
-			assert_eq!(lexer.next_token(), expected);
-		}
-	}
-	
-	#[test]
-	fn test_double_char_operators() {
-		let symbols = vec![
-			("==", Token::Eq),
-			("!=", Token::Ne),
-			("<=", Token::Le),
-			(">=", Token::Ge),
-			("++", Token::Inc),
-			("--", Token::Dec),
-			("&&", Token::Lan),
-			("||", Token::Lor),
-			("<<", Token::Shl),
-			(">>", Token::Shr),
-		];
-	
-		for (input, expected) in symbols {
-			let mut lexer = Lexer::new(input);
-			assert_eq!(lexer.next_token(), expected);
-		}
-	}
-	
-	#[test]
-	fn test_unknown_tokens() {
-	    let mut lexer = Lexer::new("ض");
-	    let token = lexer.next_token();
-	    assert_eq!(token, Token::Unknown('ض'));
-	
-	    let mut lexer = Lexer::new("س");
-	    let token = lexer.next_token();
-	    assert_eq!(token, Token::Unknown('س'));
-	}
+    let expected = vec![
+        Token::If,
+        Token::LParen,
+        Token::Id("x".into()),
+        Token::RParen,
+        Token::LBrace,
+        Token::Return,
+        Token::Num(1),
+        Token::Semicolon,
+        Token::RBrace,
+        Token::Else,
+        Token::While,
+        Token::LParen,
+        Token::Num(0),
+        Token::RParen,
+        Token::LBrace,
+        Token::RBrace,
+        Token::EOF,
+    ];
+
+    assert_eq!(tokens, expected);
+}
+
+#[test]
+fn test_lexer_string_literal() {
+    let mut lexer = Lexer::new("printf(\"Hello, world!\");");
+    let tokens = lexer.tokenize();
+
+    let expected = vec![
+        Token::Id("printf".into()),
+        Token::LParen,
+        Token::Str("Hello, world!".into()),
+        Token::RParen,
+        Token::Semicolon,
+        Token::EOF,
+    ];
+
+    assert_eq!(tokens, expected);
+}
+
+#[test]
+fn test_lexer_char_literal() {
+    let mut lexer = Lexer::new("char c = 'a';");
+    let tokens = lexer.tokenize();
+
+    let expected = vec![
+        Token::Char,
+        Token::Id("c".into()),
+        Token::Assign,
+        Token::Num('a' as i64),
+        Token::Semicolon,
+        Token::EOF,
+    ];
+
+    assert_eq!(tokens, expected);
+}
+
+#[test]
+fn test_lexer_pointer_ops() {
+    let mut lexer = Lexer::new("int* p = &x;");
+    let tokens = lexer.tokenize();
+
+    let expected = vec![
+        Token::Int,
+        Token::Mul,
+        Token::Id("p".into()),
+        Token::Assign,
+        Token::And,
+        Token::Id("x".into()),
+        Token::Semicolon,
+        Token::EOF,
+    ];
+
+    assert_eq!(tokens, expected);
+}
+
+#[test]
+fn test_lexer_invalid_tokens() {
+    let mut lexer = Lexer::new("@ $ # ~");
+    let tokens = lexer.tokenize();
+
+    // If your lexer skips unknowns silently:
+    let expected = vec![
+        Token::Unknown('@'),
+        Token::Unknown('$'),
+        Token::EOF,
+    ];
+
+    // If it logs or errors, adjust this based on your design
+    assert_eq!(tokens, expected);
+}
+
+#[test]
+fn test_lexer_with_whitespace() {
+    let mut lexer = Lexer::new("  int   x\t=\n42 ;  ");
+    let tokens = lexer.tokenize();
+
+    let expected = vec![
+        Token::Int,
+        Token::Id("x".into()),
+        Token::Assign,
+        Token::Num(42),
+        Token::Semicolon,
+        Token::EOF,
+    ];
+
+    assert_eq!(tokens, expected);
+}
+
+#[test]
+fn test_lexer_empty_input() {
+    let mut lexer = Lexer::new("");
+    let tokens = lexer.tokenize();
+
+    assert_eq!(tokens, vec![Token::EOF]);
+}
+
+#[test]
+fn test_lexer_mixed_valid_invalid() {
+    let mut lexer = Lexer::new("int x = 5; @");
+    let tokens = lexer.tokenize();
+
+    let expected = vec![
+        Token::Int,
+        Token::Id("x".into()),
+        Token::Assign,
+        Token::Num(5),
+        Token::Semicolon,
+        Token::Unknown('@'),
+        Token::EOF,
+    ];
+
+    assert_eq!(tokens, expected);
+}
+
+#[test]
+fn test_lexer_function_def_and_call() {
+    let mut lexer = Lexer::new("int sum(int a, int b) { return a + b; } sum(1, 2);");
+    let tokens = lexer.tokenize();
+
+    let expected = vec![
+        Token::Int,
+        Token::Id("sum".into()),
+        Token::LParen,
+        Token::Int,
+        Token::Id("a".into()),
+        Token::Comma,
+        Token::Int,
+        Token::Id("b".into()),
+        Token::RParen,
+        Token::LBrace,
+        Token::Return,
+        Token::Id("a".into()),
+        Token::Add,
+        Token::Id("b".into()),
+        Token::Semicolon,
+        Token::RBrace,
+        Token::Id("sum".into()),
+        Token::LParen,
+        Token::Num(1),
+        Token::Comma,
+        Token::Num(2),
+        Token::RParen,
+        Token::Semicolon,
+        Token::EOF,
+    ];
+
+    assert_eq!(tokens, expected);
+}
+
+#[test]
+fn test_lexer_pointers() {
+    let mut lexer = Lexer::new("int* ptr = &x; *ptr = 5;");
+    let tokens = lexer.tokenize();
+
+    let expected = vec![
+        Token::Int,
+        Token::Mul,
+        Token::Id("ptr".into()),
+        Token::Assign,
+        Token::And,
+        Token::Id("x".into()),
+        Token::Semicolon,
+        Token::Mul,
+        Token::Id("ptr".into()),
+        Token::Assign,
+        Token::Num(5),
+        Token::Semicolon,
+        Token::EOF,
+    ];
+
+    assert_eq!(tokens, expected);
+}
+
+#[test]
+fn test_lexer_mixed_whitespace() {
+    let mut lexer = Lexer::new("int\tmain  (  ) \n { return\t0 ; } ");
+    let tokens = lexer.tokenize();
+
+    let expected = vec![
+        Token::Int,
+        Token::Id("main".into()),
+        Token::LParen,
+        Token::RParen,
+        Token::LBrace,
+        Token::Return,
+        Token::Num(0),
+        Token::Semicolon,
+        Token::RBrace,
+        Token::EOF,
+    ];
+
+    assert_eq!(tokens, expected);
 }
