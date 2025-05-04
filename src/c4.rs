@@ -54,6 +54,5 @@ fn main() {
     }
 
     let mut vm = VM::new(instructions, functions);
-    let result = vm.run();
-    println!("Program executed with result: {}", result);
+    let _result = vm.run();
 }

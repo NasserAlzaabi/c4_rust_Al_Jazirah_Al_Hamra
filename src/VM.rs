@@ -409,11 +409,6 @@ pub fn generate(program: Vec<ASTNode>) -> (Vec<Instruction>, HashMap<String, Fun
     if !functions.contains_key("main") {
         panic!("No 'main' function found in the program. Check your test.c file.");
     }
-    
-    println!("Generated instructions:");
-    for (i, instr) in instructions.iter().enumerate() {
-        println!("{:03}: {:?}", i, instr);
-    }
 
     (instructions, functions)
 }

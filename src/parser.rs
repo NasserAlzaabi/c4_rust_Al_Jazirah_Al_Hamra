@@ -257,7 +257,6 @@ impl Parser {
 
 	/// Parses statements: blocks, return statements, and expressions
 	pub fn parse_stmt(&mut self) -> Option<ASTNode> {
-		println!("parse_stmt: token = {:?}", self.current());
 		if let Some(decl) = self.pending_decls.pop() {
 			return Some(decl);
 		}
