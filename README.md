@@ -8,6 +8,9 @@ and core functionality. This project leverages Rust’s safety, modern features,
 performance to reimplement the compiler, ensuring equivalence to the original while
 improving design where possible.
 
-Build and run instructions with examples usage (test cases provided in test.c):
-
-
+INTSTRUCTIONS:
+Clone the repository
+At the root of the repository run:
+Cargo build        - compiles the project
+Cargo run test.c   - runs the project with provided test file
+Cargo test         - runs unit tests
