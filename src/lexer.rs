@@ -11,10 +11,8 @@ String and char literals
 Operators like ==, <=, ||
 */
 
+/// Represents the different types of tokens in the C language
 #[derive(Debug, Clone, PartialEq, Eq)]
-
-
-//Token types as enum
 pub enum Token {
 	Num(i64),	//Numeric literal
 	Id(String),	//Identifier
@@ -49,7 +47,6 @@ pub enum Token {
 	Mod,     // %
 	Inc,     // ++
 	Dec,     // --
-	Brak,    // [
 
 	//Symbols and Punctuation
 	Semicolon,  // ;
@@ -68,26 +65,24 @@ pub enum Token {
 	Tilde,      // ~
 	EOF,        // End of file
 
-	Unknown(char), //unkown character
+	Unknown(char), //unknown character
 }
 
-//Lexer struct
+/// Lexical analyzer that converts source code into tokens
 pub struct Lexer<'a> {
-	pub source: &'a str, //original source code
 	pub chars: std::str::Chars<'a>, //iterator over the source
 	pub current_char: Option<char>, //current character
 	pub line: usize, //current line number
 	pub peeked: Option<char>, //one-character lookahead
 }
 
-//Lexer struct implementation
 impl<'a> Lexer<'a> {
+    /// Creates a new lexer for the given source code
     pub fn new(source: &'a str) -> Self {
         let mut chars = source.chars();
         let current_char = chars.next();
 
         Lexer {
-            source,
             chars,
             current_char,
             line: 1,
@@ -119,7 +114,8 @@ impl<'a> Lexer<'a> {
         }
     }
 
-	fn skip_whitespace_and_comments(&mut self) {
+    /// Skips whitespace characters and comments
+    fn skip_whitespace_and_comments(&mut self) {
         loop {
             match self.current_char {
                 Some(' ' | '\t' | '\r') => self.advance(),
@@ -155,26 +151,28 @@ impl<'a> Lexer<'a> {
         }
     }
 
-	fn keyword_or_id(ident: &str) -> Token {
-		match ident {
-			"char"    => Token::Char,
-			"else"    => Token::Else,
-			"enum"    => Token::Enum,
-			"if"      => Token::If,
-			"int"     => Token::Int,
-			"return"  => Token::Return,
-			"sizeof"  => Token::Sizeof,
-			"while"   => Token::While,
-			"void"    => Token::Void,
-			"float"   => Token::Float,
-			"double"  => Token::Double,
-			"short"   => Token::Short,
-			"long"    => Token::Long,
-			_ => Token::Id(ident.to_string()),
-		}
-	}
+    /// Determines if an identifier is a keyword or normal identifier
+    fn keyword_or_id(ident: &str) -> Token {
+        match ident {
+            "char"    => Token::Char,
+            "else"    => Token::Else,
+            "enum"    => Token::Enum,
+            "if"      => Token::If,
+            "int"     => Token::Int,
+            "return"  => Token::Return,
+            "sizeof"  => Token::Sizeof,
+            "while"   => Token::While,
+            "void"    => Token::Void,
+            "float"   => Token::Float,
+            "double"  => Token::Double,
+            "short"   => Token::Short,
+            "long"    => Token::Long,
+            _ => Token::Id(ident.to_string()),
+        }
+    }
 
-	pub fn next_token(&mut self) -> Token {
+    /// Returns the next token from the source code
+    pub fn next_token(&mut self) -> Token {
         self.skip_whitespace_and_comments(); //handle white space and comments
 
         match self.current_char {
@@ -397,21 +395,22 @@ impl<'a> Lexer<'a> {
 			}
         }
     }
-	
-	pub fn tokenize(&mut self) -> Vec<Token> {
-		let mut tokens = Vec::new();
+    
+    /// Tokenizes the entire source code
+    pub fn tokenize(&mut self) -> Vec<Token> {
+        let mut tokens = Vec::new();
 
-		loop {
-			let token = self.next_token();
-			if token == Token::EOF {
-				tokens.push(Token::EOF);
-				break;
-			}
-			tokens.push(token);
-		}
+        loop {
+            let token = self.next_token();
+            if token == Token::EOF {
+                tokens.push(Token::EOF);
+                break;
+            }
+            tokens.push(token);
+        }
 
-		tokens
-	}
+        tokens
+    }
 }
 
 

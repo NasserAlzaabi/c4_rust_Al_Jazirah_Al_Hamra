@@ -3,7 +3,9 @@ use crate::parser::ASTNode; // used to convert ast to instructions
 use crate::lexer::Token;    // our token enum
 use std::collections::HashMap;
 
+/// Represents instructions that can be executed by the VM
 #[derive(Debug, Clone, PartialEq)]
+#[allow(dead_code)]  // Suppress warnings for unused variants
 pub enum Instruction {
     IMM(i32),
     LC, LI, SC, SI,
@@ -24,12 +26,15 @@ pub enum Instruction {
     ADDR(String),
 }
 
+/// Represents a function definition with parameters and entry point
 pub struct Function {
+    #[allow(dead_code)]  // Suppress warning for unused field
     pub name: String,
     pub params: Vec<String>,
     pub start_addr: usize,
 }
 
+/// Virtual machine that executes compiled instructions
 pub struct VM {
     pub text: Vec<Instruction>,
     pub stack: Vec<i32>,
@@ -44,6 +49,7 @@ pub struct VM {
 }
 
 impl VM {
+    /// Creates a new VM with given program instructions and function definitions
     pub fn new(program: Vec<Instruction>, functions: HashMap<String, Function>) -> Self {
         Self {
             text: program,
@@ -59,6 +65,7 @@ impl VM {
         }
     }
 
+    /// Runs the program from start to finish and returns the final result
     pub fn run(&mut self) -> i32 {
         while self.pc < self.text.len() {
             self.execute_instruction();
@@ -91,7 +98,7 @@ impl VM {
             Instruction::LOAD(name) => self.exec_load(name),
             Instruction::PRINTF(fmt, args) => self.exec_printf(&fmt, &args),
             Instruction::EXIT => self.pc = self.text.len(),
-            Instruction::LoadString(String) => self.exec_load_string(String),
+            Instruction::LoadString(string) => self.exec_load_string(string),  // Fixed: lowercase variable name
             Instruction::DEREF => self.exec_deref(),
             Instruction::ADDR(name) => self.exec_addr(&name),
             _ => panic!("Unsupported instruction: {:?}", self.text[self.pc - 1]),
@@ -205,14 +212,11 @@ impl VM {
         
         // Allocate stack space for local variables
         self.sp += size;
-        
-        println!("ENT: bp={}, sp={}, size={}", self.bp, self.sp, size);
     }
 
     fn exec_adj(&mut self, size: usize) {
         // Adjust stack pointer (typically used after pushing function arguments)
         self.sp += size;
-        println!("ADJ: sp={}, size={}", self.sp, size);
     }
 
     fn exec_lev(&mut self) {
@@ -226,22 +230,15 @@ impl VM {
         // Fetch return address
         self.sp -= 1;
         self.pc = self.stack[self.sp] as usize;
-        
-        println!("LEV: bp={}, sp={}, pc={}", self.bp, self.sp, self.pc);
     }
 
     fn exec_lea(&mut self, offset: usize) {
         // Load effective address (local variable relative to bp)
         self.ax = (self.bp + offset) as i32;
-        println!("LEA: bp={}, offset={}, ax={}", self.bp, offset, self.ax);
     }
 
     fn exec_call(&mut self, name: &str) {
         if let Some(func) = self.functions.get(name) {
-            println!(
-                "CALL: sp = {}, ax = {}, pc = {}, calling {} at address {}",
-                self.sp, self.ax, self.pc, name, func.start_addr
-            );
             self.call_stack.push(self.pc); // Save the return address
             self.pc = func.start_addr; // Jump to the function
     
@@ -267,11 +264,6 @@ impl VM {
     }  
 
     fn exec_return(&mut self) {
-        println!(
-            "RETURN: sp = {}, ax = {}, call_stack = {:?}",
-            self.sp, self.ax, self.call_stack
-        );
-        
         self.variable_stack.pop();
 
         if let Some(return_addr) = self.call_stack.pop() {
@@ -282,7 +274,6 @@ impl VM {
             self.pc = return_addr; // Restore the program counter
         } else {
             // Terminate if the call stack is empty (main is returning)
-            println!("Main function returned, terminating program with result: {}", self.ax);
             self.pc = self.text.len(); // Terminate program
         }
     }        
@@ -305,9 +296,8 @@ impl VM {
         panic!("Undefined variable: {}", name);
     }
     
+    /// Executes a printf instruction with format string and arguments
     pub fn exec_printf(&mut self, fmt: &String, args: &Vec<String>) {
-        println!("Executing PRINTF: fmt = {:?}, args = {:?}", fmt, args);
-        println!("VM variables: {:?}", self.variables);
         let mut output = fmt.clone();
 
         for _ in args {
@@ -364,15 +354,10 @@ impl VM {
     }
 }
 
+/// Converts AST nodes into VM instructions and function definitions
+/// # Argument: program - The AST nodes representing the program
+/// Returns: A tuple containing the instructions and function definitions
 pub fn generate(program: Vec<ASTNode>) -> (Vec<Instruction>, HashMap<String, Function>) {
-    println!("DEBUG: Processing {} top-level AST nodes", program.len());
-    for (i, node) in program.iter().enumerate() {
-        match node {
-            ASTNode::FuncDef { name, .. } => println!("DEBUG: Found function #{}: {}", i, name),
-            _ => println!("DEBUG: Found node #{}: {:?}", i, node),
-        }
-    }
-
     let mut instructions = vec![
         Instruction::CALL("main".to_string()),
         Instruction::EXIT, // ← make sure EXIT happens AFTER main returns
@@ -392,15 +377,12 @@ pub fn generate(program: Vec<ASTNode>) -> (Vec<Instruction>, HashMap<String, Fun
     // Generate function definitions after the call
     for node in func_defs {
         if let ASTNode::FuncDef { name, params, body, .. } = node {
-            println!("Generating function '{}':", name);
-            
             let start_addr = instructions.len();
             
             // Create a new variable scope for the function
             instructions.push(Instruction::ENT(0)); // Will update with local variable count
             
             for stmt in &body {
-                println!("--> {:?}", stmt);
                 generate_node_with_push(&stmt, &mut instructions, false);
             }
 
@@ -420,14 +402,7 @@ pub fn generate(program: Vec<ASTNode>) -> (Vec<Instruction>, HashMap<String, Fun
                     start_addr,
                 },
             );
-            
-            println!("Registered function '{}' at address {}", name, start_addr);
         }
-    }
-    
-    println!("Function table contains {} functions:", functions.len());
-    for (name, func) in &functions {
-        println!("  - {}: addr={}, params={:?}", name, func.start_addr, func.params);
     }
     
     // Check if main exists before trying to call it
@@ -443,6 +418,12 @@ pub fn generate(program: Vec<ASTNode>) -> (Vec<Instruction>, HashMap<String, Fun
     (instructions, functions)
 }
 
+/// Generates VM instructions for an AST node and pushes the result if needed
+/// 
+/// # Arguments
+/// node - The AST node to generate instructions for
+/// instructions - The vector to append instructions to
+/// push_result - Whether to push the result onto the stack
 fn generate_node_with_push(node: &ASTNode, instructions: &mut Vec<Instruction>, push_result: bool) {
     match node {
         ASTNode::Num(value) => {
@@ -539,7 +520,6 @@ fn generate_node_with_push(node: &ASTNode, instructions: &mut Vec<Instruction>, 
                             // Store in a pseudo-variable slot (not actually used by VM logic — it's symbolic)
                             fmt_args.push(arg_name);
                         }
-                        println!("Generating PRINTF: fmt = {:?}, args = {:?}", message, fmt_args);
                         instructions.push(Instruction::PRINTF(message.clone(), fmt_args));
                     }
                     _ => panic!("printf must start with a string literal"),

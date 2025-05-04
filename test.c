@@ -1,17 +1,17 @@
+// file with testing for all implemented features
+
 // Function with integer parameters
 int add(int a, int b) {
     return a + b;
 }
 
-// Function with char parameter that returns its ASCII value
 int get_ascii(char c) {
     return c; // returns the ASCII value automatically
 }
 
-// Function with string parameter (prints address, not content)
 void print_addr(char *s) {
     // Just print the address value (as integer)
-    printf("%d\n", s);
+    printf("String address: %d\n", s);
 }
 
 // Function with if-else
@@ -23,7 +23,6 @@ int check_positive(int num) {
     }
 }
 
-// Main function with all required elements
 int main() {
     // Integer variables
     int x = 10;
@@ -31,39 +30,38 @@ int main() {
     int sum;
     
     // Char variable
-    char c = 65; // ASCII for 'A'
+    char c = 'A'; // ASCII for 'A'
     
-    // String variable (char *)
+    // String variable
     char *message = "Hello"; // String literal (won't dereference)
     
     // Print integer values with %d
-    printf("%d\n", x);
-    printf("%d\n", y);
+    printf("Value of x: %d\n", x);
+    printf("Value of y: %d\n", y);
     
     // Function call with parameters
     sum = add(x, y);
-    printf("%d\n", sum);
+    printf("Sum x,y: %d\n", sum);
     
     // Print ASCII value of character
-    printf("%d\n", c);
-    printf("%d\n", get_ascii(c));
+    printf("Character c as int: %d\n", c);
+    printf("ASCII value from get_ascii(): %d\n", get_ascii(c)); //passing char to func
     
-    // Print string address (not content)
-    printf("%d\n", message);
+    // Print string address
     print_addr(message);
     
     // While loop
     int count = 5;
     while (count > 0) {
-        printf("%d\n", count);
+        printf("Count down: %d\n", count);
         count = count - 1;
     }
     
     // If-else statement
     if (x > y) {
-        printf("%d\n", 1);
+        printf("Is x > y: %d\n", 1);
     } else {
-        printf("%d\n", 0);
+        printf("Is x > y: %d\n", 0);
     }
     
     return 0;

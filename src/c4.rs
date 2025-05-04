@@ -6,7 +6,7 @@ mod parser;
 
 use lexer::{Lexer};
 use parser::*;
-use vm::{Instruction, VM, generate};
+use vm::{VM, generate};  // Removed unused import: Instruction
 
 use std::env;
 use std::fs;
@@ -28,23 +28,22 @@ fn main() {
             process::exit(1);
         }
     };
-    println!("Successfully read {} bytes from {}", source_code.len(), filename);
+    // println!("Successfully read {} bytes from {}", source_code.len(), filename);
 
     let mut lexer = Lexer::new(&source_code);
     let tokens = lexer.tokenize();
-    println!("Lexing successful. Found {} tokens.", tokens.len());
+    // println!("Lexing successful. Found {} tokens.", tokens.len());
 
     let mut parser = Parser::new(tokens);
     let ast_nodes = parser.parse_program();
-    println!("Parsing successful. Found {} nodes.", ast_nodes.len());
+    // println!("Parsing successful. Found {} nodes.", ast_nodes.len());
     
-    // Print all top-level nodes for debugging
-    for (i, node) in ast_nodes.iter().enumerate() {
-        match node {
-            ASTNode::FuncDef { name, .. } => println!("Top-level node #{}: Function '{}'", i, name),
-            _ => println!("Top-level node #{}: {:?}", i, node),
-        }
-    }
+    // for (i, node) in ast_nodes.iter().enumerate() {
+    //     match node {
+    //         ASTNode::FuncDef { name, .. } => println!("Top-level node #{}: Function '{}'", i, name),
+    //         _ => println!("Top-level node #{}: {:?}", i, node),
+    //     }
+    // }
 
     let (instructions, functions) = generate(ast_nodes);
 

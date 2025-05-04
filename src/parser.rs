@@ -39,6 +39,7 @@ use crate::lexer::Token;
 // 	LBracket, RBracket,
 // }
 
+/// Represents a node in the Abstract Syntax Tree
 #[derive(Debug, Clone, PartialEq)]
 pub enum ASTNode {
 	Num(i64),                //Number
@@ -64,9 +65,6 @@ pub enum ASTNode {
 		name: String,
 		params: Vec<(Token, String)>, // e.g., int x, float y
 		body: Vec<ASTNode>,
-	},
-	Sizeof {
-		expr: Box<ASTNode>,
 	},
 	Assign {
 		name: String,
@@ -97,33 +95,36 @@ pub enum ASTNode {
     },
 }
 
+/// Parser for converting tokens into an Abstract Syntax Tree
 pub struct Parser {
 	tokens: Vec<Token>,
 	pos: usize,
-	current_token: Token,
 	pending_decls: Vec<ASTNode>,
 }
 
 impl Parser {
+	/// Creates a new Parser with the given tokens
 	pub fn new(tokens: Vec<Token>) -> Self {
 		Parser {
 			tokens,
 			pos: 0,
-			current_token: Token::EOF,
 			pending_decls: Vec::new(),
 		}
 	}
 
+	/// Returns the current token without advancing
 	fn current(&self) -> Option<&Token> {
 		self.tokens.get(self.pos)
 	}
 
+	/// Moves to the next token
 	fn advance(&mut self) {
 		if self.pos < self.tokens.len() {
 			self.pos += 1;
 		}
 	}
 
+	/// Expects a specific token and advances if found, panics otherwise
 	fn expect(&mut self, expected: Token) {
         if self.current() == Some(&expected) {
             self.advance(); // Move to the next token
@@ -135,12 +136,7 @@ impl Parser {
         }
     }
 
-    fn next_token(&mut self) -> Token {
-        // Logic to fetch the next token
-        // Replace this with your actual implementation
-        Token::EOF
-    }
-
+	/// Parses primary expressions: numbers, identifiers, function calls, strings, and parenthesized expressions
 	pub fn parse_primary(&mut self) -> Option<ASTNode> {
 		match self.current() {
 			Some(Token::Num(value)) => {
@@ -195,6 +191,7 @@ impl Parser {
 		}
 	}
 
+	/// Parses unary operations like -x, *x, &x, !x, ++x, --x
 	pub fn parse_unary(&mut self) -> Option<ASTNode> {
 		match self.current() {
 			Some(Token::Sub) | Some(Token::Mul) | Some(Token::And) |
@@ -214,6 +211,7 @@ impl Parser {
 		}
 	}
 
+	/// Returns the precedence level of an operator
 	fn precedence(op: &Token) -> u8 {
 		match op {
 			Token::Lor => 1,   // ||
@@ -226,6 +224,7 @@ impl Parser {
 		}
 	}
 
+	/// Parses binary operations with proper operator precedence
 	pub fn parse_binary(&mut self, min_prec: u8) -> Option<ASTNode> {
 		let mut left = self.parse_unary()?;
 	
@@ -256,6 +255,7 @@ impl Parser {
 		Some(left)
 	}
 
+	/// Parses statements: blocks, return statements, and expressions
 	pub fn parse_stmt(&mut self) -> Option<ASTNode> {
 		println!("parse_stmt: token = {:?}", self.current());
 		if let Some(decl) = self.pending_decls.pop() {
@@ -345,7 +345,7 @@ impl Parser {
 		}
 	}	
 	
-
+	/// Parses if-else statements
 	pub fn parse_if(&mut self) -> Option<ASTNode> {
 		if self.current() != Some(&Token::If) {
 			return None;
@@ -379,6 +379,7 @@ impl Parser {
 		})
 	}
 	
+	/// Parses while loops
 	pub fn parse_while(&mut self) -> Option<ASTNode> {
 	    if self.current() == Some(&Token::While) {
 	        self.advance(); // Consume 'while'
@@ -401,6 +402,7 @@ impl Parser {
 	    }
 	}	
 
+	/// Parses variable declarations
 	pub fn parse_decl(&mut self) -> Option<ASTNode> {
 	    let typename = match self.current()? {
 	        Token::Int | Token::Char => self.current()?.clone(),
@@ -465,6 +467,7 @@ impl Parser {
 	    Some(ASTNode::Block(decls))
 	}
 	
+	/// Parses function definitions
 	pub fn parse_func_def(&mut self) -> Option<ASTNode> {	
 		let return_type = match self.current()? {
 			Token::Int | Token::Char | Token::Float | Token::Double |
@@ -594,6 +597,7 @@ impl Parser {
 		})
 	}
 	
+	/// Parses expressions including assignments and ternary conditionals
 	pub fn parse_expr(&mut self) -> Option<ASTNode> {
 		let node = self.parse_binary(0)?;
 	
@@ -630,6 +634,7 @@ impl Parser {
 		Some(node)
 	}
 
+	/// Parses a complete program
 	pub fn parse_program(&mut self) -> Vec<ASTNode> {
 		let mut nodes = Vec::new();
 	
@@ -678,6 +683,7 @@ impl Parser {
 		nodes
 	}
 
+    /// Parses a block of code enclosed in curly braces
     fn parse_block(&mut self) -> Option<ASTNode> {
         if self.current() != Some(&Token::LBrace) {
             return None; // Expect '{' to start a block

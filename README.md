@@ -8,7 +8,6 @@ and core functionality. This project leverages Rust’s safety, modern features,
 performance to reimplement the compiler, ensuring equivalence to the original while
 improving design where possible.
 
-Build and run instructions with examples usage (test cases provided in test.txt):
+Build and run instructions with examples usage (test cases provided in test.c):
 
-Bonus Task Documentation:
- - To be implemented
+

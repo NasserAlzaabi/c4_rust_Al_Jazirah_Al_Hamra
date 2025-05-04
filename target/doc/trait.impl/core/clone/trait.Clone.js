@@ -1,0 +1,9 @@
+(function() {
+    var implementors = Object.fromEntries([["c4",[["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.85.0/core/clone/trait.Clone.html\" title=\"trait core::clone::Clone\">Clone</a> for <a class=\"enum\" href=\"c4/lexer/enum.Token.html\" title=\"enum c4::lexer::Token\">Token</a>"],["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.85.0/core/clone/trait.Clone.html\" title=\"trait core::clone::Clone\">Clone</a> for <a class=\"enum\" href=\"c4/parser/enum.ASTNode.html\" title=\"enum c4::parser::ASTNode\">ASTNode</a>"],["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.85.0/core/clone/trait.Clone.html\" title=\"trait core::clone::Clone\">Clone</a> for <a class=\"enum\" href=\"c4/vm/enum.Instruction.html\" title=\"enum c4::vm::Instruction\">Instruction</a>"]]],["c4_rust_Al_Jazirah_Al_Hamra",[["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.85.0/core/clone/trait.Clone.html\" title=\"trait core::clone::Clone\">Clone</a> for <a class=\"enum\" href=\"c4_rust_Al_Jazirah_Al_Hamra/lexer/enum.Token.html\" title=\"enum c4_rust_Al_Jazirah_Al_Hamra::lexer::Token\">Token</a>"],["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.85.0/core/clone/trait.Clone.html\" title=\"trait core::clone::Clone\">Clone</a> for <a class=\"enum\" href=\"c4_rust_Al_Jazirah_Al_Hamra/parser/enum.ASTNode.html\" title=\"enum c4_rust_Al_Jazirah_Al_Hamra::parser::ASTNode\">ASTNode</a>"],["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.85.0/core/clone/trait.Clone.html\" title=\"trait core::clone::Clone\">Clone</a> for <a class=\"enum\" href=\"c4_rust_Al_Jazirah_Al_Hamra/vm/enum.Instruction.html\" title=\"enum c4_rust_Al_Jazirah_Al_Hamra::vm::Instruction\">Instruction</a>"]]]]);
+    if (window.register_implementors) {
+        window.register_implementors(implementors);
+    } else {
+        window.pending_implementors = implementors;
+    }
+})()
+//{"start":57,"fragment_lengths":[751,927]}
