@@ -11,6 +11,6 @@ improving design where possible.
 INTSTRUCTIONS:
 Clone the repository
 At the root of the repository run:
-Cargo build        - compiles the project
-Cargo run test.c   - runs the project with provided test file
-Cargo test         - runs unit tests
+```Cargo build```        - compiles the project
+```Cargo run test.c```   - runs the project with provided test file
+```Cargo test```         - runs unit tests
