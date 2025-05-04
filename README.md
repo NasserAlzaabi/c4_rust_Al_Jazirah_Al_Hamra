@@ -11,20 +11,19 @@ improving design where possible.
 ## Instructions
 
 1. **Clone the Repository**  
-   Clone this repository to your local machine:  
+
    ```bash
    git clone https://github.com/NasserAlzaabi/c4_rust_Al_Jazirah_Al_Hamra.git
-Build the Project
-At the root of the repository, run:
+
+2. To compile, run:
 
     ```bash
     cargo build
 
-Execute the project with a provided test file:
-      ```bash
-            cargo run test.c
+3. Execute the project with a provided test file:
+   ```bash
+    cargo run test.c
 
-To run the unit tests, use:
-
-```bash
+4. To run the unit tests, use:
+   ```bash
     cargo test
