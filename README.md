@@ -8,9 +8,23 @@ and core functionality. This project leverages Rust’s safety, modern features,
 performance to reimplement the compiler, ensuring equivalence to the original while
 improving design where possible.
 
-INTSTRUCTIONS:
-Clone the repository
-At the root of the repository run:
-```Cargo build```        - compiles the project
-```Cargo run test.c```   - runs the project with provided test file
-```Cargo test```         - runs unit tests
+## Instructions
+
+1. **Clone the Repository**  
+   Clone this repository to your local machine:  
+   ```bash
+   git clone https://github.com/NasserAlzaabi/c4_rust_Al_Jazirah_Al_Hamra.git
+Build the Project
+At the root of the repository, run:
+
+    ```bash
+    cargo build
+
+Execute the project with a provided test file:
+      ```bash
+            cargo run test.c
+
+To run the unit tests, use:
+
+```bash
+    cargo test
